@@ -53,8 +53,8 @@ class Frame(Elaboratable):
         self.stepsize = stepsize
         self.nfft = nfft
 
-        self.sink = stream.Endpoint([("data", width)])
-        self.source = stream.Endpoint([("data", width)])
+        self.sink = stream.Endpoint([("data", (width, True))])
+        self.source = stream.Endpoint([("data", (width, True))])
 
     def elaborate(self, platform):
         sink = self.sink
