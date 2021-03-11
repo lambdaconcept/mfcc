@@ -2,6 +2,12 @@ from nmigen import *
 from nmigen.sim import Simulator, Passive
 from mfcc.core.frame import *
 from mfcc.core.window import *
+from mfcc.core.fft_stream import *
+from mfcc.core.pow2 import *
+from mfcc.core.filterbank import *
+from mfcc.core.log import *
+from mfcc.misc.mul import *
+import mfcc.misc.stream as stream
 
 class Top(Elaboratable):
     def __init__(self, width=16, nfft=512):
@@ -26,12 +32,37 @@ class Top(Elaboratable):
                                precision=8)
         m.submodules.window = window
 
+        fft_stream = FftStream(width=self.width, nfft=self.nfft)
+        m.submodules.fft_stream = fft_stream
+
+        m.submodules.fifo_fft = fifo_fft = stream.SyncFIFO([("data_r", 16), ("data_i", 16)], 256)
+        
+        m.submodules.powspec = powspec = PowerSpectrum(width=16, width_output=16, multiplier_cls=MultiplierDoubleShifter)
+
+        m.submodules.fifo_power = fifo_power = stream.SyncFIFO([("data", 16)], 4)
+
+        m.submodules.filterbank = filterbank = FilterBank(width=16, width_output=37, width_mul=None, sample_rate=16000, nfft=512, ntap=\
+26, multiplier_cls=MultiplierDoubleShifter)
+
+        m.submodules.fifo_filter = fifo_filter = stream.SyncFIFO([("data", 37)], 16)
+
+        m.submodules.log2 = log2 = Log2Fix(37, 12, multiplier_cls=Multiplier)
+        
         m.d.comb += [
             sink.connect(frame.sink),
             frame.source.connect(window.sink),
-            window.source.ready.eq(1), # XXX
+            window.source.connect(fft_stream.sink),
+            fft_stream.source.connect(fifo_fft.sink),
+            fifo_fft.source.connect(powspec.sink),
+            powspec.source.connect(fifo_power.sink),
+            fifo_power.source.connect(filterbank.sink),
+            filterbank.source.connect(fifo_filter.sink),
+            fifo_filter.source.connect(log2.sink),
+
+            log2.source.ready.eq(1) # XXX
         ]
 
+        
         # for simulator
         self.frame = frame
         self.window = window
