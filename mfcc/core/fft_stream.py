@@ -24,7 +24,8 @@ class FftStream(Elaboratable):
         cnt_empty = Signal(range(self.nfft//2))
         m.d.comb += [
             mfft.i.addr.eq(cnt_fill),
-            mfft.i.data.eq(sink.data),
+            mfft.i.data.real.eq(sink.data),
+            mfft.i.data.imag.eq(0),
             mfft.o.addr.eq(cnt_empty),
             source.data_r.eq(mfft.o.data.real),
             source.data_i.eq(mfft.o.data.imag),
