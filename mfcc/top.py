@@ -6,6 +6,7 @@ from mfcc.core.fft_stream import *
 from mfcc.core.pow2 import *
 from mfcc.core.filterbank import *
 from mfcc.core.log import *
+from mfcc.core.preemph import *
 from mfcc.misc.mul import *
 import mfcc.misc.stream as stream
 
@@ -22,6 +23,9 @@ class Top(Elaboratable):
         sink = self.sink
 
         m = Module()
+
+        preemph = Preemph(width=self.width)
+        m.submodules.preemph = preemph
 
         frame = Frame(width=self.width,
                       windowlen=self.nfft,
@@ -61,7 +65,8 @@ class Top(Elaboratable):
         m.submodules.log2 = log2 = Log2Fix(37, 12, multiplier_cls=Multiplier)
 
         m.d.comb += [
-            sink.connect(frame.sink),
+            sink.connect(preemph.sink),
+            preemph.source.connect(frame.sink),
             frame.source.connect(window.sink),
             window.source.connect(fft_stream.sink),
             fft_stream.source.connect(fifo_fft.sink),
@@ -121,12 +126,15 @@ if __name__ == "__main__":
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
 
-    chain = [[] for i in range(4)]
+    chain = [[] for i in range(5)]
 
-    sim.add_sync_process(gen_collector("frame", dut.frame.source, chain[0]))
-    sim.add_sync_process(gen_collector("window", dut.window.source, chain[1]))
-    sim.add_sync_process(gen_collector("fft", dut.fft_stream.source, chain[2], field="data_r"))
-    sim.add_sync_process(gen_collector("power", dut.powspec.source, chain[3]))
+    chain[0] = [audio[i: i + dut.frame.windowlen]
+               for i in range(0, len(audio), dut.frame.stepsize)]
+
+    sim.add_sync_process(gen_collector("frame", dut.frame.source, chain[1]))
+    sim.add_sync_process(gen_collector("window", dut.window.source, chain[2]))
+    sim.add_sync_process(gen_collector("fft", dut.fft_stream.source, chain[3], field="data_r"))
+    sim.add_sync_process(gen_collector("power", dut.powspec.source, chain[4]))
 
     with sim.write_vcd("top.vcd"):
         sim.run()
@@ -138,4 +146,5 @@ if __name__ == "__main__":
         axs[n*i+1].plot(chain[1][i], color="orange")
         axs[n*i+2].plot(chain[2][i], color="green")
         axs[n*i+3].plot(chain[3][i], color="red")
+        axs[n*i+4].plot(chain[4][i], color="violet")
     plt.show()
