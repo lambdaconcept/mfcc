@@ -285,8 +285,6 @@ class Scheduler(Elaboratable):
                     self.o.x1.eq(self.mem0.rp.data),
                 ]
 
-        m.d.comb += self.o.stb.eq(consume != 0)
-
         m.d.comb += [
             self.mem0.wp.addr.eq(produce.tap),
             self.mem1.wp.addr.eq(produce.tap),
@@ -317,7 +315,7 @@ class Scheduler(Elaboratable):
 
         m.d.comb += self.o.tw.eq(self.trom.rp.data)
 
-        with m.FSM():
+        with m.FSM() as fsm:
             with m.State("IDLE"):
                 with m.If(self.start):
                     m.d.sync += [
@@ -342,6 +340,8 @@ class Scheduler(Elaboratable):
                 with m.If(produce.tap.all() & (produce.stage == log2_int(self.size // 2))):
                     m.d.comb += self.done.eq(1)
                     m.next = "IDLE"
+
+        m.d.sync += self.o.stb.eq(fsm.ongoing("BUSY"))
 
         return m
 
