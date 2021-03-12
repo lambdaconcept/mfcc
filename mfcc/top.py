@@ -84,10 +84,13 @@ class Top(Elaboratable):
         self.window = window
         self.fft_stream = fft_stream
         self.powspec = powspec
+        self.filterbank = filterbank
+        self.log2 = log2
         return m
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
     from scipy.io import wavfile
 
     dut = Top(nfft=512)
@@ -126,7 +129,7 @@ if __name__ == "__main__":
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
 
-    chain = [[] for i in range(5)]
+    chain = [[] for i in range(7)]
 
     chain[0] = [audio[i: i + dut.frame.windowlen]
                for i in range(0, len(audio), dut.frame.stepsize)]
@@ -135,16 +138,16 @@ if __name__ == "__main__":
     sim.add_sync_process(gen_collector("window", dut.window.source, chain[2]))
     sim.add_sync_process(gen_collector("fft", dut.fft_stream.source, chain[3], field="data_r"))
     sim.add_sync_process(gen_collector("power", dut.powspec.source, chain[4]))
+    sim.add_sync_process(gen_collector("filter", dut.filterbank.source, chain[5]))
+    sim.add_sync_process(gen_collector("log", dut.log2.source, chain[6]))
 
     with sim.write_vcd("top.vcd"):
         sim.run()
 
     n = len(chain)
     fig, axs = plt.subplots(n * len(chain[-1]), figsize=(10,10))
+    colors = list(mcolors.TABLEAU_COLORS)
     for i in range(len(chain[-1])):
-        axs[n*i+0].plot(chain[0][i], color="blue")
-        axs[n*i+1].plot(chain[1][i], color="orange")
-        axs[n*i+2].plot(chain[2][i], color="green")
-        axs[n*i+3].plot(chain[3][i], color="red")
-        axs[n*i+4].plot(chain[4][i], color="violet")
+        for j in range(len(chain)):
+            axs[n*i+j].plot(chain[j][i], color=colors[j])
     plt.show()
