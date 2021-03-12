@@ -2,10 +2,10 @@ from nmigen import *
 from nmigen.sim import Simulator
 
 class MultiplierShifter(Elaboratable):
-    def __init__(self, w_a, w_b):
-        self.i_a = Signal(w_a)
-        self.i_b = Signal(w_b)
-        self.o = Signal(w_a+w_b)
+    def __init__(self, shape_a, shape_b):
+        self.i_a = i_a = Signal(shape_a)
+        self.i_b = i_b = Signal(shape_b)
+        self.o = Signal((i_a.width + i_b.width, i_a.signed or i_b.signed))
         self.start = Signal()
         self.done = Signal()
 
@@ -28,10 +28,10 @@ class MultiplierShifter(Elaboratable):
         return m
 
 class MultiplierDoubleShifter(Elaboratable):
-    def __init__(self, w_a, w_b):
-        self.i_a = Signal(w_a)
-        self.i_b = Signal(w_b)
-        self.o = Signal(w_a+w_b)
+    def __init__(self, shape_a, shape_b):
+        self.i_a = i_a = Signal(shape_a)
+        self.i_b = i_b = Signal(shape_b)
+        self.o = Signal((i_a.width + i_b.width, i_a.signed or i_b.signed))
         self.start = Signal()
         self.done = Signal()
 
@@ -74,10 +74,10 @@ class MultiplierDoubleShifter(Elaboratable):
         return m
 
 class Multiplier(Elaboratable):
-    def __init__(self, w_a, w_b):
-        self.i_a = Signal((w_a, True))
-        self.i_b = Signal(w_b)
-        self.o = Signal((w_a+w_b, True))
+    def __init__(self, shape_a, shape_b):
+        self.i_a = i_a = Signal(shape_a)
+        self.i_b = i_b = Signal(shape_b)
+        self.o = Signal((i_a.width + i_b.width, i_a.signed or i_b.signed))
         self.start = Signal()
         self.done = Signal()
 

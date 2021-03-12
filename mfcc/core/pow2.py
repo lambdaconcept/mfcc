@@ -5,15 +5,14 @@ from mfcc.misc.mul import *
 
 class PowerSpectrumCalc(Elaboratable):
     def __init__(self, width=16,  multiplier_cls=Multiplier):
-        self.i_r = Signal(width)
-        self.i_i = Signal(width)
-        #self.o = Signal(2*width+1)
-        self.o = Signal(2*width)
+        self.i_r = Signal((width, True))
+        self.i_i = Signal((width, True))
+        self.o = Signal(2 * width)
         self.start = Signal()
         self.done = Signal()
 
-        self.mul_r = multiplier_cls(width, width)
-        self.mul_i = multiplier_cls(width, width)
+        self.mul_r = multiplier_cls((width, True), (width, True))
+        self.mul_i = multiplier_cls((width, True), (width, True))
         
     def elaborate(self, platform):
         m = Module()
@@ -37,7 +36,7 @@ class PowerSpectrumCalc(Elaboratable):
         
 class PowerSpectrum(Elaboratable):
     def __init__(self, width=16, width_output=24, multiplier_cls=Multiplier):
-        self.sink = stream.Endpoint([("data_r", width), ("data_i", width)])
+        self.sink = stream.Endpoint([("data_r", (width, True)), ("data_i", (width, True))])
         self.source = stream.Endpoint( [("data", width_output)] )
         self.pow2 = PowerSpectrumCalc(width=width, multiplier_cls=multiplier_cls)
         self.width_output = width_output

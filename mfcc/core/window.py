@@ -16,7 +16,7 @@ class WindowHamming(Elaboratable):
         self.sink = stream.Endpoint([("data", (width, True))])
         self.source = stream.Endpoint([("data", (width, True))])
 
-        self.mul = multiplier_cls(width, precision + 1)
+        self.mul = multiplier_cls((width, True), precision + 1)
 
     def calc_coeffs(self):
         maxheight = 2**(self.precision + 1) - 1
