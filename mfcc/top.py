@@ -10,9 +10,11 @@ from mfcc.misc.mul import *
 import mfcc.misc.stream as stream
 
 class Top(Elaboratable):
-    def __init__(self, width=16, nfft=512):
+    def __init__(self, width=16, nfft=512, samplerate=16e3, nfilters=26):
         self.width = width
         self.nfft = nfft
+        self.samplerate = samplerate
+        self.nfilters = nfilters
 
         self.sink = stream.Endpoint([("data", (width, True))])
 
@@ -32,22 +34,32 @@ class Top(Elaboratable):
                                precision=8)
         m.submodules.window = window
 
-        fft_stream = FftStream(width=self.width, nfft=self.nfft)
+        fft_stream = FftStream(width=self.width,
+                               nfft=self.nfft)
         m.submodules.fft_stream = fft_stream
 
-        m.submodules.fifo_fft = fifo_fft = stream.SyncFIFO([("data_r", 16), ("data_i", 16)], 256)
-        
-        m.submodules.powspec = powspec = PowerSpectrum(width=16, width_output=16, multiplier_cls=MultiplierDoubleShifter)
+        m.submodules.fifo_fft = fifo_fft = stream.SyncFIFO(fft_stream.source.description, 256)
 
-        m.submodules.fifo_power = fifo_power = stream.SyncFIFO([("data", 16)], 4)
+        powspec = PowerSpectrum(width=self.width,
+                                width_output=24,
+                                multiplier_cls=Multiplier) # DoubleShifter) # XXX
+        m.submodules.powspec = powspec
 
-        m.submodules.filterbank = filterbank = FilterBank(width=16, width_output=37, width_mul=None, sample_rate=16000, nfft=512, ntap=\
-26, multiplier_cls=MultiplierDoubleShifter)
+        m.submodules.fifo_power = fifo_power = stream.SyncFIFO(powspec.source.description, 4)
 
-        m.submodules.fifo_filter = fifo_filter = stream.SyncFIFO([("data", 37)], 16)
+        filterbank = FilterBank(width=24,
+                                width_output=37,
+                                width_mul=None,
+                                sample_rate=self.samplerate,
+                                nfft=self.nfft,
+                                ntap=self.nfilters,
+                                multiplier_cls=Multiplier) # DoubleShifter) # XXX
+        m.submodules.filterbank = filterbank
+
+        m.submodules.fifo_filter = fifo_filter = stream.SyncFIFO(filterbank.source.description, 16)
 
         m.submodules.log2 = log2 = Log2Fix(37, 12, multiplier_cls=Multiplier)
-        
+
         m.d.comb += [
             sink.connect(frame.sink),
             frame.source.connect(window.sink),
@@ -62,10 +74,11 @@ class Top(Elaboratable):
             log2.source.ready.eq(1) # XXX
         ]
 
-        
         # for simulator
         self.frame = frame
         self.window = window
+        self.fft_stream = fft_stream
+        self.powspec = powspec
         return m
 
 if __name__ == "__main__":
@@ -75,42 +88,27 @@ if __name__ == "__main__":
     dut = Top(nfft=512)
     sample_rate, audio = wavfile.read("f2bjrop1.0.wav")
 
-    frames = []
-    windows = []
+    def gen_collector(name, src, list_o, field="data"):
+        def collector():
+            output = []
 
-    def collector_frames():
-        src = dut.frame.source
-        output = []
-
-        yield Passive()
-        while True:
-            if (yield src.valid) and (yield src.ready):
-                output.append((yield src.data))
-                if (yield src.last):
-                    frames.append(output)
-                    print("new frame!")
-                    output = []
-            yield
-
-    def collector_windows():
-        src = dut.window.source
-        output = []
-
-        yield Passive()
-        while True:
-            if (yield src.valid) and (yield src.ready):
-                output.append((yield src.data))
-                if (yield src.last):
-                    windows.append(output)
-                    print("new window!")
-                    output = []
-            yield
+            yield Passive()
+            while True:
+                if (yield src.valid) and (yield src.ready):
+                    output.append((yield getattr(src, field)))
+                    if (yield src.last):
+                        list_o.append(output)
+                        print("new {}!".format(name))
+                        output = []
+                yield
+        return collector
 
     def bench():
         idx = 0
         signal = [int(a) for a in audio]
+        nframes = 3
 
-        while len(windows) < 6:
+        while len(chain[-1]) < nframes:
             yield dut.sink.data.eq(signal[idx])
             yield dut.sink.valid.eq(1)
             yield
@@ -122,13 +120,22 @@ if __name__ == "__main__":
     sim = Simulator(dut)
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
-    sim.add_sync_process(collector_frames)
-    sim.add_sync_process(collector_windows)
+
+    chain = [[] for i in range(4)]
+
+    sim.add_sync_process(gen_collector("frame", dut.frame.source, chain[0]))
+    sim.add_sync_process(gen_collector("window", dut.window.source, chain[1]))
+    sim.add_sync_process(gen_collector("fft", dut.fft_stream.source, chain[2], field="data_r"))
+    sim.add_sync_process(gen_collector("power", dut.powspec.source, chain[3]))
+
     with sim.write_vcd("top.vcd"):
         sim.run()
 
-    fig, axs = plt.subplots(2 * len(windows), figsize=(10,10))
-    for i in range(len(windows)):
-        axs[2*i].plot(frames[i])
-        axs[2*i+1].plot(windows[i], color="orange")
+    n = len(chain)
+    fig, axs = plt.subplots(n * len(chain[-1]), figsize=(10,10))
+    for i in range(len(chain[-1])):
+        axs[n*i+0].plot(chain[0][i], color="blue")
+        axs[n*i+1].plot(chain[1][i], color="orange")
+        axs[n*i+2].plot(chain[2][i], color="green")
+        axs[n*i+3].plot(chain[3][i], color="red")
     plt.show()
