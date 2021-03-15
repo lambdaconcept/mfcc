@@ -3,6 +3,7 @@ from nmigen.sim import Simulator, Passive
 from mfcc.core.frame import *
 from mfcc.core.window import *
 from mfcc.core.fft_stream import *
+from mfcc.core.dct_stream import *
 from mfcc.core.pow2 import *
 from mfcc.core.filterbank import *
 from mfcc.core.log import *
@@ -62,7 +63,10 @@ class Top(Elaboratable):
 
         m.submodules.fifo_filter = fifo_filter = stream.SyncFIFO(filterbank.source.description, self.nfilters)
 
-        m.submodules.log2 = log2 = Log2Fix(filterbank.width_output, 16, multiplier_cls=Multiplier)
+        m.submodules.log2 = log2 = Log2Fix(filterbank.width_output, 15, multiplier_cls=Multiplier)
+
+        dct_stream = DCTStream(width=16, nfft=self.nfilters)
+        m.submodules.dct_stream = dct_stream
 
         m.d.comb += [
             sink.connect(preemph.sink),
@@ -75,8 +79,9 @@ class Top(Elaboratable):
             fifo_power.source.connect(filterbank.sink),
             filterbank.source.connect(fifo_filter.sink),
             fifo_filter.source.connect(log2.sink),
+            log2.source.connect(dct_stream.sink),
 
-            log2.source.ready.eq(1) # XXX
+            dct_stream.source.ready.eq(1) # XXX
         ]
 
         # for simulator
@@ -86,6 +91,7 @@ class Top(Elaboratable):
         self.powspec = powspec
         self.filterbank = filterbank
         self.log2 = log2
+        self.dct_stream = dct_stream
         return m
 
 if __name__ == "__main__":
@@ -93,7 +99,7 @@ if __name__ == "__main__":
     import matplotlib.colors as mcolors
     from scipy.io import wavfile
 
-    dut = Top(nfft=512)
+    dut = Top(nfft=512, nfilters=16)
     sample_rate, audio = wavfile.read("f2bjrop1.0.wav")
 
     def gen_collector(name, src, list_o, field="data"):
@@ -108,7 +114,7 @@ if __name__ == "__main__":
                         list_o.append(output)
                         print("new {}!".format(name))
                         output = []
-                yield
+                yield; yield Delay()
         return collector
 
     def bench():
@@ -119,17 +125,17 @@ if __name__ == "__main__":
         while len(chain[-1]) < nframes:
             yield dut.sink.data.eq(signal[idx])
             yield dut.sink.valid.eq(1)
-            yield
+            yield; yield Delay()
 
             while not (yield dut.sink.ready):
-                yield
+                yield; yield Delay()
             idx += 1
 
     sim = Simulator(dut)
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
 
-    chain = [[] for i in range(7)]
+    chain = [[] for i in range(8)]
 
     chain[0] = [audio[i: i + dut.frame.windowlen]
                for i in range(0, len(audio), dut.frame.stepsize)]
@@ -140,6 +146,7 @@ if __name__ == "__main__":
     sim.add_sync_process(gen_collector("power", dut.powspec.source, chain[4]))
     sim.add_sync_process(gen_collector("filter", dut.filterbank.source, chain[5]))
     sim.add_sync_process(gen_collector("log", dut.log2.source, chain[6]))
+    sim.add_sync_process(gen_collector("dct", dut.dct_stream.source, chain[7]))
 
     with sim.write_vcd("top.vcd"):
         sim.run()
