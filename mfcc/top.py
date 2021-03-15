@@ -62,7 +62,7 @@ class Top(Elaboratable):
 
         m.submodules.fifo_filter = fifo_filter = stream.SyncFIFO(filterbank.source.description, 16)
 
-        m.submodules.log2 = log2 = Log2Fix(37, 12, multiplier_cls=Multiplier)
+        m.submodules.log2 = log2 = Log2Fix(filterbank.width_output, 16, multiplier_cls=Multiplier)
 
         m.d.comb += [
             sink.connect(preemph.sink),

@@ -1,3 +1,4 @@
+import math
 from nmigen import *
 from nmigen.sim import Simulator
 from mfcc.misc import stream
@@ -95,24 +96,30 @@ class Log2FixCalc(Elaboratable):
 
 
 class Log2Fix(Elaboratable):
-    def __init__(self, width, precision, multiplier_cls=Multiplier):
+    def __init__(self, width, width_output, multiplier_cls=Multiplier):
         self.sink = stream.Endpoint([("data", width)])
-        self.source = stream.Endpoint( [("data", width)] )
-        self.log2 = Log2FixCalc(width=width, precision=precision, multiplier_cls=multiplier_cls)
+        self.source = stream.Endpoint( [("data", width_output)] )
+
         self.width = width
+        self.width_output = width_output
+        self.precision = width_output - math.ceil(math.log2(width))
+
+        self.log2 = Log2FixCalc(width=width + self.precision, precision=self.precision, multiplier_cls=multiplier_cls)
         
     def elaborate(self, platform):
         sink = self.sink
         source = self.source
+
         m = Module()
         m.submodules.log2 = self.log2
+
         busy = Signal()
         consumed = sink.valid & ~busy
         produced = source.valid & source.ready
 
         m.d.comb += [
-            self.log2.i.eq(sink.data),
-            source.data.eq(self.log2.o),
+            self.log2.i.eq(Cat(C(0, self.precision), sink.data)),
+            source.data.eq(self.log2.o[:self.width_output]),
             self.log2.start.eq(consumed),
             sink.ready.eq(produced),
             source.valid.eq(sink.valid & self.log2.done),
@@ -130,8 +137,7 @@ class Log2Fix(Elaboratable):
 
                     
 if __name__ == "__main__":
-    precision = 16
-    dut = Log2Fix(37, precision, multiplier_cls=Multiplier)
+    dut = Log2Fix(37, 20, multiplier_cls=Multiplier)
 
     def bench():
         yield dut.sink.data.eq(2207315)
@@ -149,7 +155,7 @@ if __name__ == "__main__":
                 yield dut.sink.valid.eq(1)
                 
             if((yield dut.source.valid)):
-                print((yield dut.source.data)/(1 << precision))
+                print((yield dut.source.data)/(1 << dut.precision))
                 yield dut.source.ready.eq(1)
                 yield dut.sink.data.eq(20 << 10)
 
