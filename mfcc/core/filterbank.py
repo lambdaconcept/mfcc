@@ -40,6 +40,7 @@ class FilterBank(Elaboratable):
             width=24,
             width_output=24,
             width_mul=None,
+            gain=0,
             sample_rate=16000,
             nfft=512,
             ntap=16,
@@ -54,6 +55,7 @@ class FilterBank(Elaboratable):
         self.nfft = nfft
         self.ntap = ntap
         self.width_output = width_output
+        self.gain = gain
         self.mul = multiplier_cls(width, self.width_mul)
         self.sink = stream.Endpoint([("data", width)])
         self.source = stream.Endpoint([("data", width_output)])
@@ -93,6 +95,7 @@ class FilterBank(Elaboratable):
         produced = mul.done & sink.valid & ~sending
         highest = acc[self.width_mul:] == ((1 << self.width_mul)-1)
         last = sink.last # filter_adr == self.ntap
+        out = regb[-self.gain-self.width_output:][:self.width_output]
 
         m.d.comb += [
             mul.start.eq(consumed),
@@ -134,12 +137,12 @@ class FilterBank(Elaboratable):
             
         # stream output path
         with m.If(produced & highest & (filter_adr != 0)):
-            with m.If(regb[-self.width_output:] == 0):
+            with m.If(out == 0):
                 #we output 1 instead of 0 in this case in order to allow log(1) later
                 #as log(0) is an error
                 m.d.sync += source.data.eq(1)
             with m.Else():
-                m.d.sync += source.data.eq(regb[-self.width_output:])
+                m.d.sync += source.data.eq(out)
                 
             m.d.sync += [
                 source.last.eq(last),

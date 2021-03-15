@@ -52,8 +52,8 @@ class Top(Elaboratable):
         m.submodules.fifo_power = fifo_power = stream.SyncFIFO(powspec.source.description, 4)
 
         filterbank = FilterBank(width=24,
-                                width_output=37,
-                                width_mul=None,
+                                width_output=16,
+                                gain=18,
                                 sample_rate=self.samplerate,
                                 nfft=self.nfft,
                                 ntap=self.nfilters,
