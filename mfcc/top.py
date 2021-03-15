@@ -11,7 +11,7 @@ from mfcc.misc.mul import *
 import mfcc.misc.stream as stream
 
 class Top(Elaboratable):
-    def __init__(self, width=16, nfft=512, samplerate=16e3, nfilters=26):
+    def __init__(self, width=16, nfft=512, samplerate=16e3, nfilters=16):
         self.width = width
         self.nfft = nfft
         self.samplerate = samplerate
@@ -42,16 +42,16 @@ class Top(Elaboratable):
                                nfft=self.nfft)
         m.submodules.fft_stream = fft_stream
 
-        m.submodules.fifo_fft = fifo_fft = stream.SyncFIFO(fft_stream.source.description, 256)
+        m.submodules.fifo_fft = fifo_fft = stream.SyncFIFO(fft_stream.source.description, self.nfft//2 + 1)
 
         powspec = PowerSpectrum(width=self.width,
-                                width_output=24,
+                                width_output=30,
                                 multiplier_cls=Multiplier) # DoubleShifter) # XXX
         m.submodules.powspec = powspec
 
         m.submodules.fifo_power = fifo_power = stream.SyncFIFO(powspec.source.description, 4)
 
-        filterbank = FilterBank(width=24,
+        filterbank = FilterBank(width=powspec.width_output,
                                 width_output=16,
                                 gain=18,
                                 sample_rate=self.samplerate,
@@ -60,7 +60,7 @@ class Top(Elaboratable):
                                 multiplier_cls=Multiplier) # DoubleShifter) # XXX
         m.submodules.filterbank = filterbank
 
-        m.submodules.fifo_filter = fifo_filter = stream.SyncFIFO(filterbank.source.description, 16)
+        m.submodules.fifo_filter = fifo_filter = stream.SyncFIFO(filterbank.source.description, self.nfilters)
 
         m.submodules.log2 = log2 = Log2Fix(filterbank.width_output, 16, multiplier_cls=Multiplier)
 
@@ -144,10 +144,12 @@ if __name__ == "__main__":
     with sim.write_vcd("top.vcd"):
         sim.run()
 
-    n = len(chain)
-    fig, axs = plt.subplots(n * len(chain[-1]), figsize=(10,10))
-    colors = list(mcolors.TABLEAU_COLORS)
-    for i in range(len(chain[-1])):
-        for j in range(len(chain)):
-            axs[n*i+j].plot(chain[j][i], color=colors[j])
+    nplots = len(chain)
+    nframes = len(chain[-1])
+
+    for i in range(nframes):
+        fig, axs = plt.subplots(nplots, figsize=(10,10))
+        colors = list(mcolors.TABLEAU_COLORS)
+        for j in range(nplots):
+            axs[j].plot(chain[j][i], color=colors[j])
     plt.show()
