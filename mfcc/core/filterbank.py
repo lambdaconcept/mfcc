@@ -109,7 +109,7 @@ class FilterBank(Elaboratable):
 
         with m.If(produced):
             #we reached the highest                                           
-            with m.If(highest):
+            with m.If(highest | last):
 
                 with m.If(last):
                     m.d.sync += filter_adr.eq(0),
@@ -136,7 +136,7 @@ class FilterBank(Elaboratable):
                 ]
             
         # stream output path
-        with m.If(produced & highest & (filter_adr != 0)):
+        with m.If(produced & (highest | last) & (filter_adr != 0)):
             with m.If(out == 0):
                 #we output 1 instead of 0 in this case in order to allow log(1) later
                 #as log(0) is an error

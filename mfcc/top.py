@@ -99,7 +99,7 @@ if __name__ == "__main__":
     import matplotlib.colors as mcolors
     from scipy.io import wavfile
 
-    dut = Top(nfft=512, nfilters=16)
+    dut = Top(nfft=512, nfilters=32)
     sample_rate, audio = wavfile.read("f2bjrop1.0.wav")
 
     def gen_collector(name, src, list_o, field="data"):
