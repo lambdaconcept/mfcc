@@ -377,7 +377,7 @@ class FFT(Elaboratable):
         m = Module()
 
         m.submodules.trom  = trom  = TwiddleROM(size=self.size, width=self.m_width)
-        m.submodules.bf    = bf    = Butterfly(width=self.m_width, bias_width=self.m_width - 2, scale_bit=True)
+        m.submodules.bf    = bf    = Butterfly(width=self.m_width, bias_width=self.m_width - 2, scale_bit=1)
         m.submodules.sched = sched = Scheduler(size=self.size, width=self.m_width)
 
         mem0 = Memory(width=2 * self.m_width, depth=self.size // 2)
