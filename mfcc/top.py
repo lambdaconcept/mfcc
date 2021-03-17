@@ -9,14 +9,17 @@ from mfcc.core.filterbank import *
 from mfcc.core.log import *
 from mfcc.core.preemph import *
 from mfcc.misc.mul import *
+from mfcc.misc.discard import *
 import mfcc.misc.stream as stream
 
 class Top(Elaboratable):
-    def __init__(self, width=16, nfft=512, samplerate=16e3, nfilters=16):
+    def __init__(self, width=16, nfft=512, samplerate=16e3,
+                 nfilters=16, nceptrums=16):
         self.width = width
         self.nfft = nfft
         self.samplerate = samplerate
         self.nfilters = nfilters
+        self.nceptrums = nceptrums
 
         self.sink = stream.Endpoint([("data", (width, True))])
 
@@ -68,6 +71,9 @@ class Top(Elaboratable):
         dct_stream = DCTStream(width=16, nfft=self.nfilters)
         m.submodules.dct_stream = dct_stream
 
+        discard = Discard(width=16, first=1, count=self.nceptrums)
+        m.submodules.discard = discard
+
         m.d.comb += [
             sink.connect(preemph.sink),
             preemph.source.connect(frame.sink),
@@ -80,8 +86,9 @@ class Top(Elaboratable):
             filterbank.source.connect(fifo_filter.sink),
             fifo_filter.source.connect(log2.sink),
             log2.source.connect(dct_stream.sink),
+            dct_stream.source.connect(discard.sink),
 
-            dct_stream.source.ready.eq(1) # XXX
+            discard.source.ready.eq(1) # XXX
         ]
 
         # for simulator
@@ -92,6 +99,7 @@ class Top(Elaboratable):
         self.filterbank = filterbank
         self.log2 = log2
         self.dct_stream = dct_stream
+        self.discard = discard
         return m
 
 if __name__ == "__main__":
@@ -135,7 +143,7 @@ if __name__ == "__main__":
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
 
-    chain = [[] for i in range(8)]
+    chain = [[] for i in range(9)]
 
     chain[0] = [audio[i: i + dut.frame.windowlen]
                for i in range(0, len(audio), dut.frame.stepsize)]
@@ -147,9 +155,18 @@ if __name__ == "__main__":
     sim.add_sync_process(gen_collector("filter", dut.filterbank.source, chain[5]))
     sim.add_sync_process(gen_collector("log", dut.log2.source, chain[6]))
     sim.add_sync_process(gen_collector("dct", dut.dct_stream.source, chain[7]))
+    sim.add_sync_process(gen_collector("discard", dut.discard.source, chain[8]))
 
     with sim.write_vcd("top.vcd"):
         sim.run()
+
+    print("window", chain[2])
+    print("fft", chain[3])
+    print("power", chain[4])
+    print("filter", chain[5])
+    print("log", chain[6])
+    print("dct", chain[7])
+    print("discard", chain[8])
 
     nplots = len(chain)
     nframes = len(chain[-1])
