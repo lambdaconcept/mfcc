@@ -9,7 +9,6 @@ class DCTStream(Elaboratable):
         self.nfft = nfft
         self.sink = stream.Endpoint([("data", (width, True))])
         self.source = stream.Endpoint([("data", (width, True))])
-        
 
     def elaborate(self, platform):
         sink = self.sink
@@ -23,19 +22,18 @@ class DCTStream(Elaboratable):
 
         cnt_fill = Signal(range(self.nfft*8))
         cnt_empty = Signal(range(self.nfft))
-        #fft_adr = Signal(range(self.nfft))
+        cnt_nxt = Signal.like(cnt_empty)
 
-        trig = Signal()
+        produce = (source.valid & source.ready)
+        last = (cnt_empty == self.nfft - 1)
+        trig = (cnt_fill[0] ^ cnt_fill[1])
 
-        m.d.comb += trig.eq(cnt_fill[0] ^ cnt_fill[1])
-        
         m.d.comb += [
-            
             mfft.i.addr.eq(Mux(trig, ~cnt_fill[1:], cnt_fill[1:])),
-
             mfft.i.data.real.eq(Mux(cnt_fill[0], sink.data, 0)),
             mfft.i.data.imag.eq(0),
-            mfft.o.addr.eq(cnt_empty),
+
+            mfft.o.addr.eq(Mux(produce, cnt_nxt, cnt_empty)),
             source.data.eq(mfft.o.data.real),
         ]
 
@@ -45,31 +43,31 @@ class DCTStream(Elaboratable):
                     mfft.i.en.eq(sink.valid),
                     sink.ready.eq(cnt_fill[:2] == 3)
                 ]
-                m.d.sync += [
-                    source.valid.eq(0),
-                    source.last.eq(0)
-                ]
 
-                with m.If(sink.valid ):
-                    m.d.sync += cnt_fill.eq(cnt_fill+1)
+                with m.If(sink.valid):
+                    m.d.sync += cnt_fill.eq(cnt_fill + 1)
                     with m.If(sink.last & sink.ready):
                         m.d.comb += mfft.start.eq(1)
-                        m.next="WORK"
+                        m.next = "WORK"
 
             with m.State("WORK"):
                 with m.If(mfft.ready):
+                    m.d.comb += cnt_nxt.eq(0)
                     m.d.sync += cnt_empty.eq(0)
                     m.next = "EMPTY"
 
             with m.State("EMPTY"):
-                m.d.sync += source.valid.eq(1)
+                m.d.comb += [
+                    source.valid.eq(1),
+                    source.last.eq(last),
+                ]
+
                 with m.If(source.ready):
-                    m.d.sync += cnt_empty.eq(cnt_empty +1)
-                    with m.If(cnt_empty == self.nfft -1):
-                        m.d.sync += [
-                            cnt_fill.eq(0),
-                            source.last.eq(1)
-                        ]
+                    m.d.comb += cnt_nxt.eq(cnt_empty + 1)
+                    m.d.sync += cnt_empty.eq(cnt_nxt)
+
+                    with m.If(last):
+                        m.d.sync += cnt_fill.eq(0)
                         m.next = "FILL"
 
         return m
