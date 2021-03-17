@@ -1,4 +1,5 @@
 from nmigen import *
+from nmigen.lib.cdc import FFSynchronizer, ResetSynchronizer
 from nmigen.sim import Simulator, Passive
 from mfcc.core.frame import *
 from mfcc.core.window import *
@@ -11,8 +12,9 @@ from mfcc.core.preemph import *
 from mfcc.misc.mul import *
 from mfcc.misc.discard import *
 import mfcc.misc.stream as stream
+from mfcc.ft601.phy import *
 
-class Top(Elaboratable):
+class MFCC(Elaboratable):
     def __init__(self, width=16, nfft=512, samplerate=16e3,
                  nfilters=16, nceptrums=16):
         self.width = width
@@ -22,9 +24,11 @@ class Top(Elaboratable):
         self.nceptrums = nceptrums
 
         self.sink = stream.Endpoint([("data", (width, True))])
+        self.source = stream.Endpoint([("data", (width, True))])
 
     def elaborate(self, platform):
         sink = self.sink
+        source = self.source
 
         m = Module()
 
@@ -46,7 +50,7 @@ class Top(Elaboratable):
                                nfft=self.nfft)
         m.submodules.fft_stream = fft_stream
 
-        m.submodules.fifo_fft = fifo_fft = stream.SyncFIFO(fft_stream.source.description, self.nfft//2 + 1)
+        m.submodules.fifo_fft = fifo_fft = stream.SyncFIFO(fft_stream.source.description, self.nfft//2)
 
         powspec = PowerSpectrum(width=self.width,
                                 width_output=30,
@@ -68,10 +72,10 @@ class Top(Elaboratable):
 
         m.submodules.log2 = log2 = Log2Fix(filterbank.width_output, 15, multiplier_cls=Multiplier)
 
-        dct_stream = DCTStream(width=16, nfft=self.nfilters)
+        dct_stream = DCTStream(width=self.width, nfft=self.nfilters)
         m.submodules.dct_stream = dct_stream
 
-        discard = Discard(width=16, first=1, count=self.nceptrums)
+        discard = Discard(width=self.width, first=1, count=self.nceptrums)
         m.submodules.discard = discard
 
         m.d.comb += [
@@ -86,9 +90,10 @@ class Top(Elaboratable):
             filterbank.source.connect(fifo_filter.sink),
             fifo_filter.source.connect(log2.sink),
             log2.source.connect(dct_stream.sink),
-            dct_stream.source.connect(discard.sink),
+            dct_stream.source.connect(source),
 
-            discard.source.ready.eq(1) # XXX
+        #     # discard.sink),
+        #     # discard.source.ready.eq(1) # XXX
         ]
 
         # for simulator
@@ -102,12 +107,102 @@ class Top(Elaboratable):
         self.discard = discard
         return m
 
-if __name__ == "__main__":
+class CRG(Elaboratable):
+    def __init__(self):
+        self.sync_reset = Signal()
+
+    def elaborate(self, platform):
+        m = Module()
+
+        clk100_i   = platform.request("clk100", 0).i
+        pll_locked = Signal()
+        pll_fb     = Signal()
+        pll_125    = Signal()
+        pll_200    = Signal()
+
+        m.submodules += Instance("PLLE2_BASE",
+            p_STARTUP_WAIT="FALSE", o_LOCKED=pll_locked,
+
+            # VCO @ 1000 MHz
+            p_REF_JITTER1=0.01, p_CLKIN1_PERIOD=10.0,
+            p_CLKFBOUT_MULT=10, p_DIVCLK_DIVIDE=1,
+            i_CLKIN1=clk100_i,
+            i_CLKFBIN=pll_fb, o_CLKFBOUT=pll_fb,
+
+            # 125 MHz
+            p_CLKOUT1_DIVIDE=8, p_CLKOUT1_PHASE=0.0,
+            o_CLKOUT1=pll_125,
+
+            # 200 MHz
+            p_CLKOUT2_DIVIDE=5, p_CLKOUT2_PHASE=0.0,
+            o_CLKOUT2=pll_200,
+        )
+
+        eos = Signal()
+        m.submodules += Instance("STARTUPE2",
+            o_EOS=eos,
+        )
+
+        # sync @ 125 MHz
+
+        m.domains += ClockDomain("sync")
+        m.submodules += Instance("BUFGCE",
+            i_I=pll_125, i_CE=eos,
+            o_O=ClockSignal("sync"),
+        )
+        m.submodules += ResetSynchronizer(
+            arst=~pll_locked | self.sync_reset, domain="sync",
+        )
+
+        # idelay_ref @ 200 MHz
+
+        m.domains += ClockDomain("idelay_ref")
+        m.submodules += Instance("BUFGCE",
+            i_I=pll_200, i_CE=eos,
+            o_O=ClockSignal("idelay_ref"),
+        )
+        m.submodules += ResetSynchronizer(
+            arst=~pll_locked, domain="idelay_ref",
+        )
+
+        # ft601 @ 100 MHz
+
+        m.domains += ClockDomain("ft601")
+        ft601_clk_i = platform.request("ft601_clk").i
+        ft601_rst_o = platform.request("ft601_rst").o
+
+        m.submodules += Instance("BUFGCE",
+            i_I=ft601_clk_i, i_CE=eos,
+            o_O=ClockSignal("ft601"),
+        )
+        m.d.comb += ft601_rst_o.eq(ResetSignal("ft601"))
+
+        return m
+
+class Top(Elaboratable):
+    def __init__(self):
+        pass
+
+    def elaborate(self, platform):
+        m = Module()
+        m.submodules.crg = crg = CRG()
+
+        m.submodules.mfcc = mfcc = MFCC(nfft=512, nfilters=32, nceptrums=16)
+        m.submodules.ft601 = ft601 = FT601PHY(pads=platform.request("ft601", 0))
+
+        m.d.comb += [
+            ft601.source.connect(mfcc.sink),
+            mfcc.source.connect(ft601.sink),
+        ]
+
+        return m
+
+def test():
     import matplotlib.pyplot as plt
     import matplotlib.colors as mcolors
     from scipy.io import wavfile
 
-    dut = Top(nfft=512, nfilters=32)
+    dut = MFCC(nfft=512, nfilters=32)
     sample_rate, audio = wavfile.read("f2bjrop1.0.wav")
 
     def gen_collector(name, src, list_o, field="data"):
@@ -177,3 +272,13 @@ if __name__ == "__main__":
         for j in range(nplots):
             axs[j].plot(chain[j][i], color=colors[j])
     plt.show()
+
+if __name__ == "__main__":
+    from mfcc.board.platform import *
+    # from nmigen.back import rtlil
+
+    # dut = FFT(size=512, i_width=16, o_width=16, m_width=16)
+
+    platform = SDMUlatorPlatform()
+    platform.build(Top(), name="top", build_dir="build")
+    # print(rtlil.convert(dut))
