@@ -4,16 +4,18 @@
 
 #include "ft601.h"
 
-#define STEP_SIZE   170
+#define NFFT        512
+#define STEPSIZE    170
 #define NCEPTRUMS   32
 
 int main()
 {
     int i, j;
     int err;
+    int amount;
     FILE *file;
     int16_t sample;
-    uint32_t buffer[512];
+    uint32_t buffer[NFFT];
     struct ft601_context ft601;
 
     file = fopen("../f2bjrop1.0.raw", "rb");
@@ -28,16 +30,33 @@ int main()
         goto out;
     }
 
+    /* Send a software reset */
+
+    buffer[0] = 0x80000000;
+    err = ft601_write(&ft601, buffer, sizeof(uint32_t));
+    if (err) {
+        printf("Error ft601_write %d\n", err);
+        goto out;
+    }
+
     printf("mydata = [\n");
 
     for (j=0; j<1000; j++) {
 
-        for (i=0; i<STEP_SIZE; i++) {
+        /* On the first round, we need to send the entire FFT size to
+         * produce the first ceptrum set. On the next rounds, we send only
+         * the amount for the step size */
+
+        amount = (j == 0) ? NFFT : STEPSIZE;
+
+        memset(buffer, 0, sizeof(uint32_t) * amount);
+
+        for (i=0; i<amount; i++) {
             fread(&sample, sizeof(sample), 1, file);
-            buffer[i] = sample;
+            buffer[i] = sample & 0xffff;
         }
 
-        err = ft601_write(&ft601, buffer, sizeof(uint32_t) * STEP_SIZE);
+        err = ft601_write(&ft601, buffer, sizeof(uint32_t) * amount);
         if (err) {
             printf("Error ft601_write %d\n", err);
             goto out;
@@ -49,7 +68,6 @@ int main()
             goto out;
         }
 
-        // printf("FRAME %d\n", j);
         printf("[");
         for (i=0; i<NCEPTRUMS; i++) {
             printf("%d, ", (int)buffer[i]);

@@ -23,6 +23,7 @@ class MFCC(Elaboratable):
         self.nfilters = nfilters
         self.nceptrums = nceptrums
 
+        self.reset = Signal()
         self.sink = stream.Endpoint([("data", (width, True))])
         self.source = stream.Endpoint([("data", (width, True))])
 
@@ -110,6 +111,8 @@ class MFCC(Elaboratable):
         self.log2 = log2
         self.dct_stream = dct_stream
         self.discard = discard
+
+        m = ResetInserter(self.reset)(m)
         return m
 
 class CRG(Elaboratable):
@@ -195,10 +198,19 @@ class Top(Elaboratable):
         m.submodules.mfcc = mfcc = MFCC(nfft=512, nfilters=32, nceptrums=16)
         m.submodules.ft601 = ft601 = FT601PHY(pads=platform.request("ft601", 0))
 
-        m.d.comb += [
-            ft601.source.connect(mfcc.sink),
-            mfcc.source.connect(ft601.sink),
-        ]
+        reset = (ft601.source.valid & ft601.source.data[-1])
+
+        with m.If(reset):
+            m.d.comb += [
+                mfcc.reset.eq(1),
+                ft601.source.ready.eq(1),
+            ]
+
+        with m.Else():
+            m.d.comb += [
+                ft601.source.connect(mfcc.sink),
+                mfcc.source.connect(ft601.sink),
+            ]
 
         return m
 
