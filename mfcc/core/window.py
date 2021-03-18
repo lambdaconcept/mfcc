@@ -117,8 +117,8 @@ class WindowHamming(Elaboratable):
             with m.If(source.last):
                 m.d.sync += count.eq(0)
             with m.Else():
-                m.d.sync += count.eq(count + 1)
                 m.d.comb += count_nxt.eq(count + 1)
+                m.d.sync += count.eq(count_nxt)
 
         # multiplier busy
         with m.If(consumed & ~produced):
