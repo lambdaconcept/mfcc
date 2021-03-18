@@ -92,8 +92,7 @@ class MFCC(Elaboratable):
             log2.source.connect(dct_stream.sink),
             dct_stream.source.connect(source),
 
-        #     # discard.sink),
-        #     # discard.source.ready.eq(1) # XXX
+            # discard.sink
         ]
 
         # for simulator
@@ -224,6 +223,7 @@ def test():
         idx = 0
         signal = [int(a) for a in audio]
         nframes = 3
+        yield dut.source.ready.eq(1)
 
         while len(chain[-1]) < nframes:
             yield dut.sink.data.eq(signal[idx])
@@ -238,7 +238,7 @@ def test():
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
 
-    chain = [[] for i in range(9)]
+    chain = [[] for i in range(8)]
 
     chain[0] = [audio[i: i + dut.frame.windowlen]
                for i in range(0, len(audio), dut.frame.stepsize)]
@@ -250,7 +250,7 @@ def test():
     sim.add_sync_process(gen_collector("filter", dut.filterbank.source, chain[5]))
     sim.add_sync_process(gen_collector("log", dut.log2.source, chain[6]))
     sim.add_sync_process(gen_collector("dct", dut.dct_stream.source, chain[7]))
-    sim.add_sync_process(gen_collector("discard", dut.discard.source, chain[8]))
+    # sim.add_sync_process(gen_collector("discard", dut.discard.source, chain[8]))
 
     with sim.write_vcd("top.vcd"):
         sim.run()
@@ -261,7 +261,7 @@ def test():
     print("filter", chain[5])
     print("log", chain[6])
     print("dct", chain[7])
-    print("discard", chain[8])
+    # print("discard", chain[8])
 
     nplots = len(chain)
     nframes = len(chain[-1])
@@ -273,12 +273,24 @@ def test():
             axs[j].plot(chain[j][i], color=colors[j])
     plt.show()
 
-if __name__ == "__main__":
-    from mfcc.board.platform import *
+def build():
+    from mfcc.board.platform import SDMUlatorPlatform
     # from nmigen.back import rtlil
 
     # dut = FFT(size=512, i_width=16, o_width=16, m_width=16)
+    # print(rtlil.convert(dut))
 
     platform = SDMUlatorPlatform()
     platform.build(Top(), name="top", build_dir="build")
-    # print(rtlil.convert(dut))
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) != 2:
+        print("usage: {} build|test".format(sys.argv[0]))
+        sys.exit(1)
+
+    if sys.argv[1] == "build":
+        build()
+    elif sys.argv[1] == "test":
+        test()
