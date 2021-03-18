@@ -11,6 +11,7 @@ from mfcc.core.log import *
 from mfcc.core.preemph import *
 from mfcc.misc.mul import *
 from mfcc.misc.discard import *
+from mfcc.misc.blinker import *
 import mfcc.misc.stream as stream
 from mfcc.ft601.phy import *
 
@@ -197,8 +198,16 @@ class Top(Elaboratable):
 
         m.submodules.mfcc = mfcc = MFCC(nfft=512, nfilters=32, nceptrums=16)
         m.submodules.ft601 = ft601 = FT601PHY(pads=platform.request("ft601", 0))
+        m.submodules.blinker_rx = blinker_rx = BlinkerKeep()
+        m.submodules.blinker_tx = blinker_tx = BlinkerKeep()
+
+        led_rx = platform.request("led", 0)
+        led_tx = platform.request("led", 1)
 
         reset = (ft601.source.valid & ft601.source.data[-1])
+
+        rx = (ft601.source.valid & ft601.source.ready)
+        tx = (ft601.sink.valid & ft601.sink.ready)
 
         with m.If(reset):
             m.d.comb += [
@@ -210,6 +219,11 @@ class Top(Elaboratable):
             m.d.comb += [
                 ft601.source.connect(mfcc.sink),
                 mfcc.source.connect(ft601.sink),
+
+                blinker_rx.i.eq(rx),
+                blinker_tx.i.eq(tx),
+                led_rx.eq(blinker_rx.o),
+                led_tx.eq(blinker_tx.o),
             ]
 
         return m
