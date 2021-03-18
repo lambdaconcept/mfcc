@@ -93,17 +93,20 @@ class _FIFOWrapper:
 
 
 class SyncFIFO(Elaboratable, _FIFOWrapper):
-    def __init__(self, layout, depth, fwft=True):
+    def __init__(self, layout, depth, buffered=False):
         super().__init__(layout)
-        self.fifo = fifo.SyncFIFO(width=len(Record(self.layout)), depth=depth, fwft=fwft)
+        fifo_class = fifo.SyncFIFOBuffered if buffered else fifo.SyncFIFO
+        self.fifo  = fifo_class(width=len(Record(self.layout)), depth=depth)
         self.depth = self.fifo.depth
         self.level = self.fifo.level
 
 
 class AsyncFIFO(Elaboratable, _FIFOWrapper):
-    def __init__(self, layout, depth, r_domain="read", w_domain="write"):
+    def __init__(self, layout, depth, buffered=False,
+                 r_domain="read", w_domain="write"):
         super().__init__(layout)
-        self.fifo    = fifo.AsyncFIFO(width=len(Record(self.layout)), depth=depth,
+        fifo_class   = fifo.AsyncFIFOBuffered if buffered else fifo.AsyncFIFO
+        self.fifo    = fifo_class(width=len(Record(self.layout)), depth=depth,
                                       r_domain=r_domain, w_domain=w_domain)
         self.depth   = self.fifo.depth
         self.r_rst   = self.fifo.r_rst
