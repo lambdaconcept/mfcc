@@ -51,7 +51,7 @@ class MFCC(Elaboratable):
         m.submodules.fft_stream = fft_stream
 
         fifo_fft = stream.SyncFIFO(fft_stream.source.description,
-                                   self.nfft//2, fwft=False)
+                                   self.nfft//2, buffered=True)
         m.submodules.fifo_fft = fifo_fft
 
         powspec = PowerSpectrum(width=self.width,
@@ -60,7 +60,7 @@ class MFCC(Elaboratable):
         m.submodules.powspec = powspec
 
         fifo_power = stream.SyncFIFO(powspec.source.description,
-                                     4, fwft=False)
+                                     4, buffered=True)
         m.submodules.fifo_power = fifo_power
 
         filterbank = FilterBank(width=powspec.width_output,
@@ -73,7 +73,7 @@ class MFCC(Elaboratable):
         m.submodules.filterbank = filterbank
 
         fifo_filter = stream.SyncFIFO(filterbank.source.description,
-                                      self.nfilters, fwft=False)
+                                      self.nfilters, buffered=True)
         m.submodules.fifo_filter = fifo_filter
 
         m.submodules.log2 = log2 = Log2Fix(filterbank.width_output, 15, multiplier_cls=Multiplier)
