@@ -1,0 +1,3 @@
+[submodule "software/libwav"]
+	path = software/libwav
+	url = https://github.com/brglng/libwav.git

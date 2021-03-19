@@ -1,6 +1,7 @@
 all:
-	gcc *.c -lusb-1.0
+	gcc *.c libwav/src/*.c -I libwav/include -lusb-1.0 -o mfcc
 
 run:
-	./a.out > mydata.py
-	python view.py
+	# ./mfcc ../f2bjrop1.0.wav cepstrum.bin
+	# python view.py cepstrum.bin
+	./mfcc dataset
