@@ -9,7 +9,7 @@ __all__ = ["Endpoint", "SyncFIFO", "AsyncFIFO"]
 def _make_fanout(layout):
     r = []
     for f in layout:
-        if isinstance(f[1], (int, tuple)):
+        if isinstance(f[1], (Shape, int, tuple, range)):
             r.append((f[0], f[1], DIR_FANOUT))
         else:
             r.append((f[0], _make_fanout(f[1])))
