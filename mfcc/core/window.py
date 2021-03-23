@@ -6,6 +6,7 @@ from mfcc.misc.mul import *
 import numpy as np
 from scipy.signal import get_window
 
+
 class WindowHamming(Elaboratable):
     def __init__(self, width=16, nfft=512, precision=8, multiplier_cls=Multiplier):
         self.width = width
@@ -16,7 +17,7 @@ class WindowHamming(Elaboratable):
         self.sink = stream.Endpoint([("data", (width, True))])
         self.source = stream.Endpoint([("data", (width, True))])
 
-        self.mul = multiplier_cls((width, True), precision + 1)
+        self.mul = multiplier_cls(signed(width), precision + 1)
 
     def calc_coeffs(self):
         maxheight = 2**(self.precision + 1) - 1
@@ -42,9 +43,6 @@ class WindowHamming(Elaboratable):
         return mem, off_fst, off_lst
 
     def elaborate(self, platform):
-        sink = self.sink
-        source = self.source
-
         m = Module()
         m.submodules.mul = mul = self.mul
 
@@ -52,7 +50,6 @@ class WindowHamming(Elaboratable):
         mem = Memory(depth=len(coeffs), width=self.precision, init=coeffs)
         m.submodules.mem_rp = mem_rp = mem.read_port()
 
-        busy = Signal()
         count = Signal(range(self.nfft))
         count_nxt = Signal.like(count)      # anticipate the next count value
         curve = Signal(self.precision + 1)
@@ -68,21 +65,26 @@ class WindowHamming(Elaboratable):
         bit_odd = count[0]
 
         average = ((point + point_r) >> 1)
-        consumed = (sink.valid & ~busy)
-        produced = (source.valid & source.ready)
+        produced = (self.source.valid & self.source.ready)
+
+        with m.If(~mul.i.valid | mul.i.ready):
+            m.d.comb += self.sink.ready.eq(1)
+            m.d.sync += [
+                # data path
+                mul.i.a.eq(self.sink.data),
+                mul.i.b.eq(curve),
+                mul.i.valid.eq(self.sink.valid),
+                mul.i.first.eq(self.sink.first),
+                mul.i.last .eq(self.sink.last),
+            ]
 
         m.d.comb += [
-            # data path
-            mul.i_a.eq(sink.data),
-            mul.i_b.eq(curve),
-            source.data.eq(mul.o[-self.width:]),
-
             # ctrl path
-            mul.start.eq(consumed),
-            sink.ready.eq(produced),
-            source.valid.eq(sink.valid & mul.done),
-            source.first.eq(sink.first),
-            source.last.eq(sink.last),
+            self.source.valid.eq(mul.o.valid),
+            self.source.data .eq(mul.o.c[-self.width:]),
+            self.source.first.eq(mul.o.first),
+            self.source.last .eq(mul.o.last),
+            mul.o.ready.eq(self.source.ready),
         ]
 
         # horizontal symetry:
@@ -114,20 +116,15 @@ class WindowHamming(Elaboratable):
 
         # output counter
         with m.If(produced):
-            with m.If(source.last):
+            with m.If(self.source.last):
                 m.d.sync += count.eq(0)
             with m.Else():
                 m.d.comb += count_nxt.eq(count + 1)
                 m.d.sync += count.eq(count_nxt)
 
-        # multiplier busy
-        with m.If(consumed & ~produced):
-            m.d.sync += busy.eq(1)
-        with m.Elif(produced):
-            m.d.sync += busy.eq(0)
-
         self.curve = curve # for simulator
         return m
+
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -149,10 +146,11 @@ if __name__ == "__main__":
             yield
             while not (yield dut.sink.ready):
                 yield
+            while not (yield dut.source.valid):
+                yield
+            curve.append((yield dut.curve))
+            output.append((yield dut.source.data))
             idx += 1
-            if (yield dut.source.valid) and (yield dut.source.ready):
-                curve.append((yield dut.curve))
-                output.append((yield dut.source.data))
 
         maxheight = 2**(dut.precision + 1) - 1
         window = get_window("hamm", dut.nfft, fftbins=True)

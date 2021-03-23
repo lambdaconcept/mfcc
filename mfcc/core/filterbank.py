@@ -45,7 +45,7 @@ class FilterBank(Elaboratable):
             nfft=512,
             ntap=16,
             multiplier_cls=Multiplier
-    ):        
+    ):
         if width_mul == None:
             self.width_mul = width
         else:
@@ -61,124 +61,116 @@ class FilterBank(Elaboratable):
         self.source = stream.Endpoint([("data", width_output)])
         self.points = get_filter_points(0, sample_rate/2, ntap, nfft, sample_rate=sample_rate)
         self.filters = calc_filters(self.points, wsize=self.width_mul)
-        
-    def elaborate(self, platform):
-        sink = self.sink
-        source = self.source
 
+    def elaborate(self, platform):
         m = Module()
         mem = Memory(depth=len(self.filters), width=2*self.width_mul, init=self.filters)
         m.submodules.mem_rp = mem_rp = mem.read_port(domain="comb")
         m.submodules.mul = mul = self.mul
-        filter_adr = Signal(range(len(self.filters)))
 
-        acc = Signal(2*self.width_mul)
-        
         maxvalrange = int(math.log2(self.points[-1] - self.points[-3])) + self.width + self.width_mul
 
-
-        rega = Signal(maxvalrange)
-        regb = Signal(maxvalrange)
-        mult = Signal(self.width + self.width_mul)
-
-        
-        m.d.comb += [
-            mem_rp.addr.eq(filter_adr),
-            mul.i_a.eq(sink.data),
-            mul.i_b.eq(acc[self.width_mul:]),
-            mult.eq(mul.o)
+        mul_stages = [
+            Record([
+                ("highest",    1),
+                ("data",       self.width),
+                ("filter_adr", len(mem_rp.addr)),
+            ], name=f"stage_{j}") for j in range(mul.pipe_stages + 1)
         ]
 
-        busy = Signal()
-        sending = source.valid
-        consumed = sink.valid & ~busy & ~sending
-        produced = mul.done & sink.valid & ~sending
-        highest = acc[self.width_mul:] == ((1 << self.width_mul)-1)
-        last = sink.last # filter_adr == self.ntap
-        out = regb[-self.gain-self.width_output:][:self.width_output]
+        i_stage = mul_stages[ 0]
+        o_stage = mul_stages[-1]
+
+        for i, o in zip(mul_stages, mul_stages[1:]):
+            with m.If(mul.i.ready):
+                m.d.sync += o.eq(i)
+
+        # Input
+
+        i_acc = Signal(2 * self.width_mul)
+        m.d.comb += [
+            i_stage.highest.eq(i_acc[self.width_mul:] == ((1 << self.width_mul) - 1)),
+            i_stage.data   .eq(self.sink.data),
+        ]
+
+        i_stage.filter_adr.reset = 0
+        m.d.comb += mem_rp.addr.eq(i_stage.filter_adr)
 
         m.d.comb += [
-            mul.start.eq(consumed),
-            sink.ready.eq(produced),
-            #source.valid.eq(sink.valid & pow2.done),
+            self.sink.ready.eq(mul.i.ready),
+            mul.i.valid.eq(self.sink.valid),
+            mul.i.a.eq(self.sink.data),
+            mul.i.b.eq(i_acc[self.width_mul:]),
+            mul.i.last.eq(self.sink.last),
         ]
-        with m.If(consumed & ~produced):
-            m.d.sync += busy.eq(1)
-        with m.Elif(produced):
-            m.d.sync += busy.eq(0)
 
-        with m.If(produced):
-            #we reached the highest                                           
-            with m.If(highest | last):
-
-                with m.If(last):
-                    m.d.sync += filter_adr.eq(0),
+        with m.If(mul.i.valid & mul.i.ready):
+            with m.If(i_stage.highest | mul.i.last):
+                with m.If(mul.i.last):
+                    m.d.sync += i_stage.filter_adr.eq(0)
                 with m.Else():
-                    m.d.sync += filter_adr.eq(filter_adr+1),
+                    m.d.sync += i_stage.filter_adr.eq(i_stage.filter_adr + 1)
+                m.d.sync += i_acc.eq(0)
+            with m.Else():
+                m.d.sync += i_acc.eq(i_acc + mem_rp.data)
 
+        # Output
+
+        o_rega = Signal(maxvalrange)
+        o_regb = Signal(maxvalrange)
+        o_data = Signal(self.width_output)
+        m.d.comb += o_data.eq(o_regb[-(self.gain + self.width_output):][:self.width_output]),
+
+        with m.If(mul.o.valid & mul.o.ready):
+            with m.If(o_stage.highest | mul.o.last):
                 m.d.sync += [
-                    acc.eq(0),
-                    #regb.eq(rega + sink.data ),
-                    regb.eq(rega + (sink.data << self.width_mul)),
-                    rega.eq(0),
+                    o_rega.eq(0),
+                    o_regb.eq(o_rega + (o_stage.data << self.width_mul)),
                 ]
-
-            #we are growing                                                   
             with m.Else():
                 m.d.sync += [
-                    #rega.eq(rega + mult[-self.width:]),
-                    #regb.eq(regb + sink.data - mult[-self.width:]),
-
-                    rega.eq(rega + mult),
-                    regb.eq(regb + (sink.data << self.width_mul) - mult),
-                    
-                    acc.eq(acc + mem_rp.data),
+                    o_rega.eq(o_rega + mul.o.c),
+                    o_regb.eq(o_regb + (o_stage.data << self.width_mul) - mul.o.c),
                 ]
-            
-        # stream output path
-        with m.If(produced & (highest | last) & (filter_adr != 0)):
-            with m.If(out == 0):
-                #we output 1 instead of 0 in this case in order to allow log(1) later
-                #as log(0) is an error
-                m.d.sync += source.data.eq(1)
-            with m.Else():
-                m.d.sync += source.data.eq(out)
-                
+
+        with m.If(~self.source.valid | self.source.ready):
+            m.d.comb += mul.o.ready.eq(1)
             m.d.sync += [
-                source.last.eq(last),
-                sending.eq(1),
+                self.source.valid.eq(mul.o.valid & (o_stage.highest | mul.o.last) & (o_stage.filter_adr != 0)),
+                self.source.data .eq(o_data),
+                self.source.last .eq(mul.o.last),
             ]
-        with m.Elif(sending & source.ready):
-            m.d.sync += [
-                source.last.eq(0),
-                sending.eq(0),
-            ]
-        
+
         return m
 
-        
-    
+
 if __name__ == "__main__":
-    dut = FilterBank(width=31, width_output=32, multiplier_cls=MultiplierShifter)
-    def bench():
-        #yield dut.sink.data.eq(2**24-1)
-        yield dut.sink.data.eq(1234)
+    dut = FilterBank(width=31, width_output=32, multiplier_cls=Multiplier)
+
+    def w_bench():
+        yield dut.sink.data .eq(1234)
         yield dut.sink.valid.eq(1)
+        for i in range(600):
+            while not (yield dut.sink.ready):
+                yield
+            yield dut.sink.last.eq(i == 599)
+            yield
+        yield dut.sink.valid.eq(0)
         yield
-        for i in range(100):
-            yield
-        for i in range(10000):
-            if i == 600:
-                yield dut.sink.last.eq(1)
 
-            if (yield dut.source.valid) and (yield dut.source.ready):
-                print((yield dut.source.data))
-            yield dut.source.ready.eq(dut.source.valid)
+    def r_bench():
+        yield dut.source.ready.eq(1)
+        while True:
+            while not (yield dut.source.valid):
+                yield
+            print((yield dut.source.data))
+            if (yield dut.source.last):
+                break
             yield
-
 
     sim = Simulator(dut)
     sim.add_clock(1e-6) # 1 MHz
-    sim.add_sync_process(bench)
+    sim.add_sync_process(w_bench)
+    sim.add_sync_process(r_bench)
     with sim.write_vcd("filterbank.vcd"):
         sim.run()
