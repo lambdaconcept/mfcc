@@ -226,6 +226,27 @@ class Top(Elaboratable):
                 led_tx.eq(blinker_tx.o),
             ]
 
+        # LiteScope
+
+        # uart_pins = platform.request("uart", 0)
+
+        # m.submodules.litescope = Instance("litescope",
+        #     i_clk=ClockSignal("sync"),
+        #     i_rst=ResetSignal("sync"),
+        #     o_serial_tx=uart_pins.tx,
+        #     i_serial_rx=uart_pins.rx,
+
+        #     i_prb_mfcc_reset=mfcc.reset,
+
+        #     i_prb_mfcc_sink_valid=mfcc.sink.valid,
+        #     i_prb_mfcc_sink_ready=mfcc.sink.ready,
+        #     i_prb_mfcc_sink_data=mfcc.sink.data,
+
+        #     i_prb_mfcc_source_valid=mfcc.source.valid,
+        #     i_prb_mfcc_source_ready=mfcc.source.ready,
+        #     i_prb_mfcc_source_data=mfcc.source.data,
+        # )
+
         return m
 
 def test():
@@ -322,6 +343,18 @@ def build():
     # print(rtlil.convert(dut))
 
     platform = SDMUlatorPlatform()
+
+    # from nmigen.build.dsl import Attrs
+    # from nmigen_boards.resources import UARTResource
+    # platform.add_resources([
+    #     UARTResource(0,
+    #         rx="1", tx="2", conn=("cn", 14),
+    #         attrs=Attrs(IOSTANDARD="LVCMOS33")
+    #     ),
+    # ])
+    # with open("litescope.v", "r")  as f:
+    #     platform.add_file("litescope.v", f)
+
     platform.build(Top(), name="top", build_dir="build")
 
 if __name__ == "__main__":
