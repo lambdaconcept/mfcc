@@ -83,8 +83,8 @@ class MFCC(Elaboratable):
         dct_stream = DCTStream(width=self.width, nfft=self.nfilters)
         m.submodules.dct_stream = dct_stream
 
-        discard = Discard(width=self.width, first=1, count=self.nceptrums)
-        m.submodules.discard = discard
+        # discard = Discard(width=self.width, first=1, count=self.nceptrums)
+        # m.submodules.discard = discard
 
         m.d.comb += [
             sink.connect(preemph.sink),
@@ -111,7 +111,7 @@ class MFCC(Elaboratable):
         self.filterbank = filterbank
         self.log2 = log2
         self.dct_stream = dct_stream
-        self.discard = discard
+        # self.discard = discard
 
         m = ResetInserter(self.reset)(m)
         return m
@@ -254,17 +254,26 @@ def test():
     def bench():
         idx = 0
         signal = [int(a) for a in audio]
-        nframes = 3
+        nframes = 3 # (len(audio) - dut.frame.nfft) // dut.frame.stepsize + 1 + 1
         yield dut.source.ready.eq(1)
 
         while len(chain[-1]) < nframes:
-            yield dut.sink.data.eq(signal[idx])
+            if idx < len(signal):
+                yield dut.sink.data.eq(signal[idx])
+            else:
+                yield dut.sink.data.eq(0) # padding
             yield dut.sink.valid.eq(1)
             yield; yield Delay()
 
             while not (yield dut.sink.ready):
                 yield; yield Delay()
             idx += 1
+
+        yield dut.sink.valid.eq(0)
+        yield dut.reset.eq(1)
+        yield
+        yield dut.reset.eq(0)
+        yield
 
     sim = Simulator(dut)
     sim.add_clock(1e-6) # 1 MHz
