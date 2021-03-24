@@ -1,6 +1,7 @@
 from nmigen import *
 from nmigen.sim import Simulator
 from mfcc.misc import stream
+from mfcc.misc.mem import *
 
 class RotatingCounter(Elaboratable):
     def __init__(self, size):
@@ -61,9 +62,8 @@ class Frame(Elaboratable):
         source = self.source
 
         m = Module()
-        mem = Memory(depth=self.windowlen, width=self.width)
-        m.submodules.mem_rp = mem_rp = mem.read_port()
-        m.submodules.mem_wp = mem_wp = mem.write_port()
+        mem = Memory1W1R(depth=self.windowlen, width=self.width)
+        m.submodules.mem = mem
 
         lvl = Signal(range(self.windowlen + 1))                         # level represents the amount of valid data in the memory bank
         firstfill = Signal(reset=1)
@@ -115,9 +115,9 @@ class Frame(Elaboratable):
 
         # memory
         m.d.comb += [
-            mem_wp.addr.eq(addr_i.val),
-            mem_wp.data.eq(sink.data),
-            source.data.eq(Mux(padding, 0, mem_rp.data)),
+            mem.wp.addr.eq(addr_i.val),
+            mem.wp.data.eq(sink.data),
+            source.data.eq(Mux(padding, 0, mem.rp.data)),
         ]
 
         # output stream delimiters
@@ -131,7 +131,7 @@ class Frame(Elaboratable):
             with m.If(sink.valid):
                 m.d.comb += [
                     sink.ready.eq(1),
-                    mem_wp.en.eq(1),
+                    mem.wp.en.eq(1),
                     addr_i.inc.eq(1),
                 ]
 
@@ -139,7 +139,7 @@ class Frame(Elaboratable):
         with m.If(~empty | padding):
             m.d.comb += [
                 source.valid.eq(1),
-                mem_rp.addr.eq(Mux(source.ready, addr_o.nxt, addr_o.val)),
+                mem.rp.addr.eq(Mux(source.ready, addr_o.nxt, addr_o.val)),
             ]
 
             with m.If(source.ready):
@@ -150,7 +150,7 @@ class Frame(Elaboratable):
         # we cannot send data yet but load memory addr
         #  so the data is ready on next clk cycle
         with m.Else():
-            m.d.comb += mem_rp.addr.eq(addr_o.val)
+            m.d.comb += mem.rp.addr.eq(addr_o.val)
 
         return m
 
