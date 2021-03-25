@@ -59,10 +59,12 @@ class Log2FixCalc(Elaboratable):
                     m.d.sync += [
                         x.eq(x[1:]),
                         self.o.data.eq(self.o.data + (1 << self.precision)),
-                        z.eq(x[1:]),
                     ]
                 with m.Else():
-                    m.d.sync += cnt.eq(self.precision - 1)
+                    m.d.sync += [
+                        cnt.eq(self.precision - 1),
+                        z.eq(x),
+                    ]
                     m.next = "CALC-1"
 
             with m.State("CALC-1"):
@@ -139,6 +141,9 @@ class Log2Fix(Elaboratable):
 
 if __name__ == "__main__":
     dut = Log2Fix(37, 20, multiplier_cls=Multiplier)
+    print("Log precision bits:", dut.precision)
+    div = (1 << dut.precision)
+    print("Divisor:", div, hex(div))
 
     def bench():
         yield dut.sink.data.eq(2207315)
@@ -151,7 +156,10 @@ if __name__ == "__main__":
         yield
         while not (yield dut.source.valid):
             yield
-        print((yield dut.source.data) / (1 << dut.precision))
+
+        res = (yield dut.source.data)
+        print("Raw result:", res, hex(res))
+        print("Result:", res / div)
 
     sim = Simulator(dut)
     sim.add_clock(1e-6) # 1 MHz
