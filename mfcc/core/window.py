@@ -1,5 +1,5 @@
 from nmigen import *
-from nmigen.sim import Simulator
+from nmigen.sim import *
 from mfcc.misc import stream
 from mfcc.misc.mul import *
 
@@ -127,43 +127,65 @@ class WindowHamming(Elaboratable):
 
 
 if __name__ == "__main__":
+    import random
     import matplotlib.pyplot as plt
     from scipy.io import wavfile
 
     dut = WindowHamming(nfft=512, precision=8)
     sample_rate, audio = wavfile.read("f2bjrop1.0.wav")
 
-    def bench():
-        idx = 0
-        curve = []
-        signal = [int(a) for a in audio[2000:2000+dut.nfft]]
-        output = []
-        yield dut.source.ready.eq(1)
+    data_in = [int(a) for a in audio[2000:2000+dut.nfft]]
+    curve = []
+    data_out = []
 
-        while not len(output) == len(signal):
-            yield dut.sink.data.eq(signal[idx])
-            yield dut.sink.valid.eq(1)
+    def sender():
+        speed = 1
+
+        i = 0
+        while i < len(data_in):
+            yield dut.sink.data.eq(data_in[i])
+            yield dut.sink.last.eq(i == len(data_in)-1)
+
+            if (not (yield dut.sink.valid) or ((yield dut.sink.valid) and (yield dut.sink.ready))) and (random.random() < speed):
+                yield dut.sink.valid.eq(1)
+
             yield
-            while not (yield dut.sink.ready):
-                yield
-            while not (yield dut.source.valid):
-                yield
-            curve.append((yield dut.curve))
-            output.append((yield dut.source.data))
-            idx += 1
+
+            if (yield dut.sink.valid) and (yield dut.sink.ready):
+                curve.append((yield dut.curve))
+                i += 1
+                yield dut.sink.valid.eq(0)
+
+    def receiver():
+        speed = 1
+
+        yield Passive()
+        while True:
+            yield dut.source.ready.eq((yield dut.source.valid) and (random.random() < speed))
+
+            yield
+
+            if (yield dut.source.valid) and (yield dut.source.ready):
+                data_out.append((yield dut.source.data))
+
+    def bench():
+        while len(data_out) < len(data_in):
+            yield
 
         maxheight = 2**(dut.precision + 1) - 1
         window = get_window("hamm", dut.nfft, fftbins=True)
 
         plt.plot(window * maxheight)
         plt.plot(curve)
-        plt.plot(signal)
-        plt.plot(output)
+        plt.plot(data_in)
+        plt.plot(data_out)
         print("curve:", curve)
         plt.show()
 
     sim = Simulator(dut)
     sim.add_clock(1e-6) # 1 MHz
+    sim.add_sync_process(sender)
+    sim.add_sync_process(receiver)
     sim.add_sync_process(bench)
     with sim.write_vcd("window.vcd"):
         sim.run()
