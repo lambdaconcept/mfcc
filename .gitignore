@@ -12,3 +12,5 @@ __pycache__/
 *.il
 *.v
 /build
+
+*/.ipynb_checkpoints
