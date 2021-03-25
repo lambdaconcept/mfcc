@@ -65,7 +65,7 @@ class WindowHamming(Elaboratable):
         bit_odd = count[0]
 
         average = ((point + point_r) >> 1)
-        produced = (self.source.valid & self.source.ready)
+        consumed = (self.sink.valid & self.sink.ready)
 
         with m.If(~mul.i.valid | mul.i.ready):
             m.d.comb += self.sink.ready.eq(1)
@@ -91,8 +91,8 @@ class WindowHamming(Elaboratable):
         #  change the memory direction at every window quarter.
         #  when producing a value, anticipate the next memory address
         #  so the data can be read at the next clock cycle.
-        addr = Mux(produced, bits_addr_nxt, bits_addr)
-        with m.If(Mux(produced, bit_dir_nxt, bit_dir)):
+        addr = Mux(consumed, bits_addr_nxt, bits_addr)
+        with m.If(Mux(consumed, bit_dir_nxt, bit_dir)):
             m.d.comb += mem_rp.addr.eq(~addr)
         with m.Else():
             m.d.comb += mem_rp.addr.eq(addr)
@@ -111,12 +111,12 @@ class WindowHamming(Elaboratable):
         with m.Else():
             m.d.comb += curve.eq(off_fst + point)
 
-            with m.If(produced):
+            with m.If(consumed):
                 m.d.sync += point_r.eq(point)
 
-        # output counter
-        with m.If(produced):
-            with m.If(self.source.last):
+        # input counter
+        with m.If(consumed):
+            with m.If(self.sink.last):
                 m.d.sync += count.eq(0)
             with m.Else():
                 m.d.comb += count_nxt.eq(count + 1)
