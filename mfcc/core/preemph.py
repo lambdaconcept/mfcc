@@ -9,23 +9,19 @@ Preemph applies a pre-emphasis coefitient of 1-1/32 = 0,96875
 class Preemph(Elaboratable):
     def __init__(self, width=16):
         self.width = width
-        self.sink = stream.Endpoint([("data", width)])
-        self.source = stream.Endpoint([("data", width)])
+        self.sink = stream.Endpoint([("data", signed(width))])
+        self.source = stream.Endpoint([("data", signed(width))])
 
     def elaborate(self, platform):
         m = Module()
 
-        sinkdata = Signal(signed(self.width))
-        sourcedata = Signal(signed(self.width))
         odata = Signal(signed(self.width))
 
         with m.If(self.sink.valid & self.sink.ready):
             m.d.sync += odata.eq(self.sink.data)
 
         m.d.comb += [
-            sinkdata.eq(self.sink.data),
-            sourcedata.eq(sinkdata + (odata >> 5) - odata),
-            self.source.data.eq(sourcedata),
+            self.source.data.eq(self.sink.data + (odata >> 5) - odata),
             self.sink.ready.eq(self.source.ready),
             self.source.valid.eq(self.sink.valid),
             self.source.last.eq(self.sink.last)
