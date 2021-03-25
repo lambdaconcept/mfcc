@@ -1,10 +1,7 @@
 from nmigen import *
 from nmigen.sim import Simulator
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-from scipy.io import wavfile
-from misc import stream
+from mfcc.misc import stream
+
 
 """
 Preemph applies a pre-emphasis coefitient of 1-1/32 = 0,96875
@@ -12,20 +9,19 @@ Preemph applies a pre-emphasis coefitient of 1-1/32 = 0,96875
 class Preemph(Elaboratable):
     def __init__(self, width=16):
         self.width = width
-        self.sink = stream.Endpoint( [("data", width)])
+        self.sink = stream.Endpoint([("data", width)])
         self.source = stream.Endpoint([("data", width)])
 
     def elaborate(self, platform):
         m = Module()
+
         sinkdata = Signal(signed(self.width))
         sourcedata = Signal(signed(self.width))
-        sink = self.sink
-        source = self.source
         odata = Signal(signed(self.width))
-        
+
         with m.If(self.sink.valid & self.sink.ready):
-            m.d.sync += odata.eq( self.sink.data)
-            
+            m.d.sync += odata.eq(self.sink.data)
+
         m.d.comb += [
             sinkdata.eq(self.sink.data),
             sourcedata.eq(sinkdata + (odata >> 5) - odata),
@@ -34,19 +30,22 @@ class Preemph(Elaboratable):
             self.source.valid.eq(self.sink.valid),
             self.source.last.eq(self.sink.last)
         ]
-                
+
         return m
 
-    
 
-                    
 if __name__ == "__main__":
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.io import wavfile
+
     dut = Preemph()
     val = []
     res = []
+
     def bench():
-        sample_rate, audio = wavfile.read("f2bjrop1.0.wav")    
-        
+        sample_rate, audio = wavfile.read("f2bjrop1.0.wav")
+
         yield dut.source.ready.eq(1)
         yield dut.sink.valid.eq(1)
         for i in range(2000):
@@ -59,14 +58,13 @@ if __name__ == "__main__":
             res.append(np.int16((yield dut.source.data)))
             #print(i, v, np.int16((yield dut.source.data)))
         plt.plot(val)
-        plt.show()
-        #plt.plot(val)
         plt.plot(res)
         plt.show()
         print(val)
         print(res)
-    sim = Simulator(dut)        
+
+    sim = Simulator(dut)
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
-    with sim.write_vcd("frame.vcd"):
+    with sim.write_vcd("preemph.vcd"):
         sim.run()
