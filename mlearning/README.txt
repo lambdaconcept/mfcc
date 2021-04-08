@@ -44,7 +44,7 @@ cd dataset
 sh ../pad_mfcc.sh
 cd ..
 
-python train_mfcc.py
+python train.py
 python convert.py
 
 xxd -i saved/model_mfcc/model.tflite > apps/examples/helloxx/model.h
