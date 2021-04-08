@@ -7,10 +7,15 @@ __pycache__/
 **/test/spec_*/
 *.vcd
 *.gtkw
+analyzer.csv
+csr.csv
 
 # misc user-created
 *.il
 *.v
-/build
-
-*/.ipynb_checkpoints
+/build*
+*.bak
+*.old
+*.ipynb_checkpoints
+*dataset*
+*.tgz

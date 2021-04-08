@@ -1,3 +1,15 @@
 [submodule "software/libwav"]
 	path = software/libwav
 	url = https://github.com/brglng/libwav.git
+[submodule "mlearning/libcxx"]
+	path = mlearning/libcxx
+	url = https://bitbucket.org/acassis/libcxx
+[submodule "mlearning/apps"]
+	path = mlearning/apps
+	url = git@github.com:lambdaconcept/mfcc-apps.git
+[submodule "mlearning/nuttx"]
+	path = mlearning/nuttx
+	url = git@github.com:lambdaconcept/mfcc-nuttx.git
+[submodule "mlearning/tensorflow"]
+	path = mlearning/tensorflow
+	url = https://github.com/tensorflow/tensorflow.git
