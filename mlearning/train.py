@@ -13,13 +13,10 @@ from tensorflow.keras.layers.experimental import preprocessing
 from tensorflow.keras import layers
 from tensorflow.keras import models
 
-ncepstrums = 32
-nframes = ds.input_shape[0] // ncepstrums
-
 # Define and train the model
 
 model = models.Sequential([
-    layers.Reshape((-1, nframes, ncepstrums, 1), input_shape=ds.input_shape),
+    layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
     layers.Conv2D(8, 9, activation='relu'),
     layers.Dropout(0.25),
     layers.Flatten(),
