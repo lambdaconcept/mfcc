@@ -13,19 +13,43 @@ from tensorflow.keras.layers.experimental import preprocessing
 from tensorflow.keras import layers
 from tensorflow.keras import models
 
+seed = 42
+tf.random.set_seed(seed)
+np.random.seed(seed)
+
 # Define and train the model
 
-model = models.Sequential([
+store = {}
+
+# Tiny Conv
+# Trainable params: 54,809
+# Test set accuracy: 73%
+store["tiny_conv"] = models.Sequential([
     layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
-    layers.Conv2D(8, 9, activation='relu'),
+    layers.Conv2D(8, (9, 9), strides=(2, 2), padding="same", activation="relu"),
     layers.Dropout(0.25),
     layers.Flatten(),
     layers.Dense(ds.num_labels, activation="softmax"),
 ])
 
+# Tiny Embedding Conv
+# Trainable params: 55,393
+# Test set accuracy: 85%
+store["tiny_embedding_conv"] = models.Sequential([
+    layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
+    layers.Conv2D(8, (9, 9), strides=(2, 2), padding="same", activation="relu"),
+    layers.Dropout(0.25),
+    layers.Conv2D(8, (3, 3), strides=(1, 1), padding="same", activation="relu"),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    layers.Dense(ds.num_labels, activation="softmax"),
+])
+
+name = "tiny_embedding_conv"
+model = store[name]
 model.summary()
 
-log_dir = "logs/fitmfcc/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+log_dir = "logs/fit_" + name + "/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 model.compile(
@@ -42,10 +66,11 @@ history = model.fit(
     callbacks=[
         tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5),
         tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", patience=3, factor=0.2, min_lr=0.001),
+        tensorboard_callback,
     ]
 )
 
-save_path = "saved/model_mfcc/"
+save_path = "saved/model_" + name + "/"
 tf.saved_model.save(model, save_path)
 
 # Evaluate test set performance

@@ -86,7 +86,8 @@ for audio, label in ds.test_ds:
 test_audio = np.array(test_audio)
 test_labels = np.array(test_labels)
 
-save_path = "saved/model_mfcc/"
+name = "tiny_embedding_conv"
+save_path = "saved/model_" + name + "/"
 tflite_model_file = os.path.join(save_path, "model_float.tflite")
 tflite_model_quant_file = os.path.join(save_path, "model.tflite")
 

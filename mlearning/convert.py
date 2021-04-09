@@ -2,7 +2,8 @@ import os
 import pathlib
 import tensorflow as tf
 
-save_path = "saved/model_mfcc/"
+name = "tiny_embedding_conv"
+save_path = "saved/model_" + name + "/"
 converter = tf.lite.TFLiteConverter.from_saved_model(save_path)
 # converter = tf.compat.v1.lite.TFLiteConverter.from_saved_model(save_path)
 # converter.experimental_new_converter = True
