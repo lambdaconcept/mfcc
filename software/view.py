@@ -10,8 +10,9 @@ NCEPSTRUMS = 32
 def main(path):
     wav = path + ".wav"
     mfcc = path + ".mfcc"
+    lift = path + ".lift"
 
-    fig, axs = plt.subplots(2, figsize=(15,8))
+    fig, axs = plt.subplots(3, figsize=(15,8))
 
     sample_rate, audio = wavfile.read(wav)
     axs[0].plot(np.linspace(0, len(audio) / sample_rate, num=len(audio)), audio)
@@ -20,8 +21,12 @@ def main(path):
     raw = np.fromfile(mfcc, dtype=np.int16)
     arr = np.reshape(raw, (-1, NCEPSTRUMS))
     print("cepstrum sets:", arr.shape)
-
     axs[1].imshow(np.transpose(arr), aspect='auto', origin='lower', cmap="inferno");
+
+    raw = np.fromfile(lift, dtype=np.int16)
+    arr = np.reshape(raw, (-1, NCEPSTRUMS))
+    print("cepstrum sets:", arr.shape)
+    axs[2].imshow(np.transpose(arr), aspect='auto', origin='lower', cmap="inferno");
 
     plt.show()
 
