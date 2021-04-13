@@ -11,8 +11,10 @@ def main(path):
     wav = path + ".wav"
     mfcc = path + ".mfcc"
     lift = path + ".lift"
+    spec = path + ".spec"
+    scale = path + ".sklearn"
 
-    fig, axs = plt.subplots(3, figsize=(15,8))
+    fig, axs = plt.subplots(5, figsize=(15,8))
 
     sample_rate, audio = wavfile.read(wav)
     axs[0].plot(np.linspace(0, len(audio) / sample_rate, num=len(audio)), audio)
@@ -27,6 +29,23 @@ def main(path):
     arr = np.reshape(raw, (-1, NCEPSTRUMS))
     print("cepstrum sets:", arr.shape)
     axs[2].imshow(np.transpose(arr), aspect='auto', origin='lower', cmap="inferno");
+
+    NFRAMES = 93 + 2
+    try:
+        raw = np.fromfile(spec, dtype=np.int16)
+        arr = np.reshape(raw, (-1, NFRAMES))
+        print("librosa spec sets:", arr.shape)
+        axs[3].imshow(arr, aspect='auto', origin='lower', cmap="inferno");
+    except FileNotFoundError:
+        pass
+
+    try:
+        raw = np.fromfile(scale, dtype=np.int16)
+        arr = np.reshape(raw, (-1, NFRAMES))
+        print("sklearn scale sets:", arr.shape)
+        axs[4].imshow(arr, aspect='auto', origin='lower', cmap="inferno");
+    except FileNotFoundError:
+        pass
 
     plt.show()
 
