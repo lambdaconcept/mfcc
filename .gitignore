@@ -17,5 +17,5 @@ csr.csv
 *.bak
 *.old
 *.ipynb_checkpoints
-*dataset*
+*dataset*/
 *.tgz

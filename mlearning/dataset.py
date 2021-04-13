@@ -9,6 +9,9 @@ seed = 42
 tf.random.set_seed(seed)
 np.random.seed(seed)
 
+nmfcc = 32
+ncepstrums = 16
+
 # Import the Speech Commands dataset
 
 data_dir = pathlib.Path("dataset")
@@ -36,7 +39,8 @@ print("Test set size:", len(test_files))
 
 def decode_mfcc(mfcc_binary):
     mfcc = tf.io.decode_raw(mfcc_binary, tf.int16)
-    # mfcc = tf.reshape(mfcc, [-1, 32])
+    mfcc = tf.reshape(mfcc, [-1, nmfcc])
+    mfcc = tf.reshape(mfcc[:,:ncepstrums], [-1])
     return mfcc
 
 def get_label(file_path):
@@ -83,5 +87,5 @@ for mfcc, _ in mfcc_ds.take(1):
 print("Input shape:", input_shape)
 num_labels = len(commands)
 
-ncepstrums = 32
 nframes = input_shape[0] // ncepstrums
+print("N frames:", nframes)
