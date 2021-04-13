@@ -74,7 +74,7 @@ train_ds = mfcc_ds
 val_ds = preprocess_dataset(val_files)
 test_ds = preprocess_dataset(test_files)
 
-batch_size = 64
+batch_size = 256
 train_ds = train_ds.batch(batch_size)
 val_ds = val_ds.batch(batch_size)
 

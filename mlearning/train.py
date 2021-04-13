@@ -21,6 +21,33 @@ np.random.seed(seed)
 
 store = {}
 
+# Conv
+# store["conv"] = models.Sequential([
+#     layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
+#     layers.Conv2D(64, (20, 8), strides=(1, 1), padding="same", activation="relu"),
+#     layers.Dropout(0.25),
+#     layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding="same"),
+#     layers.Conv2D(64, (10, 4), strides=(1, 1), padding="same", activation="relu"),
+#     layers.Dropout(0.25),
+#     layers.Flatten(),
+#     layers.Dense(ds.num_labels, activation="softmax"),
+# ])
+
+# Low Latency Conv
+# Trainable params: 3,061,593
+# Test set accuracy: 81%
+store["low_latency_conv"] = models.Sequential([
+    layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
+    layers.Conv2D(16, (32, 9), strides=(1, 1), padding="same", activation="relu"),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    layers.Dense(64),
+    layers.Dropout(0.25),
+    layers.Dense(128),
+    layers.Dropout(0.25),
+    layers.Dense(ds.num_labels, activation="softmax"),
+])
+
 # Tiny Conv
 # Trainable params: 54,809
 # Test set accuracy: 73%
@@ -33,13 +60,46 @@ store["tiny_conv"] = models.Sequential([
 ])
 
 # Tiny Embedding Conv
+# (32 cepstrums)
 # Trainable params: 55,393
+# Test set accuracy: 84%-86%
+# (16 cepstrums)
+# Trainable params: 28,321
 # Test set accuracy: 85%
 store["tiny_embedding_conv"] = models.Sequential([
     layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
     layers.Conv2D(8, (9, 9), strides=(2, 2), padding="same", activation="relu"),
     layers.Dropout(0.25),
     layers.Conv2D(8, (3, 3), strides=(1, 1), padding="same", activation="relu"),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    # layers.Dense(64),
+    # layers.Dropout(0.25),
+    layers.Dense(ds.num_labels, activation="softmax"),
+])
+
+# From kaggle
+store["kaggle"] = models.Sequential([
+    layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
+    layers.Conv2D(8, (9, 3), strides=(2, 2), padding="same", activation="relu"),
+    # layers.Conv2D(8, (1, 7), strides=(1, 1), padding="same", activation="relu"),
+    layers.Conv2D(16, (1, 9), strides=(1, 1), padding="same", activation="relu"),
+    layers.Conv2D(16, (9, 1), strides=(1, 1), padding="same", activation="relu"),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    layers.Dense(64),
+    layers.Dropout(0.25),
+    layers.Dense(ds.num_labels, activation="softmax"),
+])
+
+# LSTM (Not convertible ?)
+# Trainable params: 25,481
+# Test set accuracy: 73%
+store["lstm"] = models.Sequential([
+    layers.Reshape((ds.nframes, ds.ncepstrums), input_shape=ds.input_shape),
+    layers.LSTM(64, return_sequences=False),
+    layers.Dropout(0.25),
+    layers.Dense(64, activation="relu"),
     layers.Dropout(0.25),
     layers.Flatten(),
     layers.Dense(ds.num_labels, activation="softmax"),
@@ -58,7 +118,7 @@ model.compile(
     metrics=["accuracy"],
 )
 
-EPOCHS = 50
+EPOCHS = 200
 history = model.fit(
     ds.train_ds,
     validation_data=ds.val_ds,
