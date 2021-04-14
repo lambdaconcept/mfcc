@@ -25,10 +25,13 @@ def main(path):
     print("cepstrum sets:", arr.shape)
     axs[1].imshow(np.transpose(arr), aspect='auto', origin='lower', cmap="inferno");
 
-    raw = np.fromfile(lift, dtype=np.int16)
-    arr = np.reshape(raw, (-1, NCEPSTRUMS))
-    print("cepstrum sets:", arr.shape)
-    axs[2].imshow(np.transpose(arr), aspect='auto', origin='lower', cmap="inferno");
+    try:
+        raw = np.fromfile(lift, dtype=np.int16)
+        arr = np.reshape(raw, (-1, NCEPSTRUMS))
+        print("cepstrum sets:", arr.shape)
+        axs[2].imshow(np.transpose(arr), aspect='auto', origin='lower', cmap="inferno");
+    except FileNotFoundError:
+        pass
 
     NFRAMES = 93 + 2
     try:
