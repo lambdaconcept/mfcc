@@ -60,15 +60,12 @@ store["tiny_conv"] = models.Sequential([
 ])
 
 # Tiny Embedding Conv
-# (32 cepstrums)
-# Trainable params: 55,393
-# Test set accuracy: 84%-86%
 # (16 cepstrums)
-# Trainable params: 28,321
-# Test set accuracy: 85%
+# Trainable params: 29,029
+# Test set accuracy: 89%
 store["tiny_embedding_conv"] = models.Sequential([
     layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
-    layers.Conv2D(8, (9, 9), strides=(2, 2), padding="same", activation="relu"),
+    layers.Conv2D(10, (11, 11), strides=(2, 2), padding="same", activation="relu"),
     layers.Dropout(0.25),
     layers.Conv2D(8, (3, 3), strides=(1, 1), padding="same", activation="relu"),
     layers.Dropout(0.25),
@@ -130,6 +127,10 @@ history = model.fit(
     ]
 )
 
+val_acc_per_epoch = history.history['val_accuracy']
+best_epoch = val_acc_per_epoch.index(max(val_acc_per_epoch)) + 1
+print('Best epoch: %d' % (best_epoch,))
+
 save_path = "saved/model_" + name + "/"
 tf.saved_model.save(model, save_path)
 
@@ -159,16 +160,3 @@ sns.heatmap(confusion_mtx, xticklabels=ds.commands, yticklabels=ds.commands,
             annot=True, fmt="g")
 plt.xlabel("Prediction")
 plt.ylabel("Label")
-
-# # Run inference on an audio file
-
-# sample_file = data_dir/"no/01bb6a2a_nohash_0.wav"
-# sample_ds = preprocess_dataset([str(sample_file)])
-
-# for spectrogram, label in sample_ds.batch(1):
-#     prediction = model(spectrogram)
-
-# plt.bar(ds.commands, tf.nn.softmax(prediction[0]))
-# plt.title(f"Predictions for \"{ds.commands[label[0]]}\"")
-
-# plt.show()
