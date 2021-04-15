@@ -4,6 +4,7 @@ import pathlib
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+import tensorflow_io as tfio
 
 seed = 42
 tf.random.set_seed(seed)
@@ -70,7 +71,26 @@ def preprocess_dataset(files):
     output_ds = output_ds.map(get_mfcc_and_label_id, num_parallel_calls=AUTOTUNE)
     return output_ds
 
+# Create a generator
+rng = tf.random.Generator.from_seed(123, alg='philox')
+
+# A wrapper function for updating seeds
+def f(x, y):
+  seed = rng.make_seeds(2)[0]
+  image, label = augment((x, y), seed)
+  return image, label
+
+def augment(image_label, seed):
+    image, label = image_label
+    image = tf.reshape(image, [-1, ncepstrums])
+    image = tfio.experimental.audio.freq_mask(image, param=4)
+    image = tfio.experimental.audio.time_mask(image, param=10)
+    image = tf.reshape(image, [-1])
+    return image, label
+
 train_ds = mfcc_ds
+# Data Augmentation
+# train_ds = train_ds.map(f, num_parallel_calls=AUTOTUNE)
 val_ds = preprocess_dataset(val_files)
 test_ds = preprocess_dataset(test_files)
 
