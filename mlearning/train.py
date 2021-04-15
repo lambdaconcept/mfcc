@@ -115,14 +115,14 @@ model.compile(
     metrics=["accuracy"],
 )
 
-EPOCHS = 200
+EPOCHS = 127 # 150
 history = model.fit(
     ds.train_ds,
     validation_data=ds.val_ds,
     epochs=EPOCHS,
     callbacks=[
-        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5),
-        tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", patience=3, factor=0.2, min_lr=0.001),
+        # tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5),
+        # tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", patience=3, factor=0.2, min_lr=0.001),
         tensorboard_callback,
     ]
 )
