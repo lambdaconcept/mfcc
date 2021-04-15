@@ -10,6 +10,8 @@ seed = 42
 tf.random.set_seed(seed)
 np.random.seed(seed)
 
+AUTOTUNE = tf.data.AUTOTUNE
+
 nmfcc = 32
 ncepstrums = 16
 
@@ -25,7 +27,6 @@ filenames = tf.random.shuffle(filenames)
 num_samples = len(filenames)
 print("Number of total examples:", num_samples)
 print("Number of examples per label:", len(tf.io.gfile.listdir(str(data_dir/commands[0]))))
-print("Example file tensor:", filenames[0])
 
 sts = int(num_samples * 0.80)
 svs = int(num_samples * 0.90)
@@ -54,16 +55,10 @@ def get_mfcc_and_label(file_path):
     mfcc = decode_mfcc(mfcc_binary)
     return mfcc, label
 
-AUTOTUNE = tf.data.AUTOTUNE
-files_ds = tf.data.Dataset.from_tensor_slices(train_files)
-mfcc_ds = files_ds.map(get_mfcc_and_label, num_parallel_calls=AUTOTUNE)
-
 def get_mfcc_and_label_id(mfcc, label):
     label_id = tf.argmax(label == commands)
     # mfcc = tf.expand_dims(mfcc, -1)
     return mfcc, label_id
-
-mfcc_ds = mfcc_ds.map(get_mfcc_and_label_id, num_parallel_calls=AUTOTUNE)
 
 def preprocess_dataset(files):
     files_ds = tf.data.Dataset.from_tensor_slices(files)
@@ -88,7 +83,16 @@ def augment(image_label, seed):
     image = tf.reshape(image, [-1])
     return image, label
 
-train_ds = mfcc_ds
+train_ds = preprocess_dataset(train_files)
+for mfcc, _ in train_ds.take(1):
+    input_shape = mfcc.shape
+
+print("Input shape:", input_shape)
+num_labels = len(commands)
+
+nframes = input_shape[0] // ncepstrums
+print("N frames:", nframes)
+
 # Data Augmentation
 # train_ds = train_ds.map(f, num_parallel_calls=AUTOTUNE)
 val_ds = preprocess_dataset(val_files)
@@ -100,12 +104,3 @@ val_ds = val_ds.batch(batch_size)
 
 train_ds = train_ds.cache().prefetch(AUTOTUNE)
 val_ds = val_ds.cache().prefetch(AUTOTUNE)
-
-for mfcc, _ in mfcc_ds.take(1):
-    input_shape = mfcc.shape
-
-print("Input shape:", input_shape)
-num_labels = len(commands)
-
-nframes = input_shape[0] // ncepstrums
-print("N frames:", nframes)
