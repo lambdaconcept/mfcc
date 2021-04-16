@@ -45,12 +45,26 @@ sh ../pad_mfcc.sh
 cd ..
 
 python train.py
+
+6. Convert to TFLite
+--------------------
+
 python convert.py
 
-xxd -i saved/model_mfcc/model.tflite > apps/examples/helloxx/model.h
+xxd -i saved/model_tiny_embedding_conv/model.tflite > apps/examples/helloxx/model.h
 sed -i 's/unsigned char .*\[\]/unsigned char g_model[]/' apps/examples/helloxx/model.h
 
-6. Build Nuttx
+Invoke float/quantized models with python API to check accuracy
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+python invoke.py
+
+Visualize quantized model
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+python /mnt/data/prog/tensorflow/tensorflow/lite/tools/visualize.py saved/model_tiny_embedding_conv/model.tflite saved/model_tiny_embedding_conv/model.html
+
+7. Build Nuttx
 --------------
 
 TFLIBDIR="$(pwd)/tensorflow/tensorflow/lite/micro/tools/make/gen/linux_x86_64_default/prj/hello_world/make"
@@ -58,7 +72,7 @@ TFLIBDIR="$(pwd)/tensorflow/tensorflow/lite/micro/tools/make/gen/linux_x86_64_de
 cd nuttx
 EXTRA_LIBS="${TFLIBDIR}/libtensorflow-microlite.a" make -j
 
-7. Program the device
+8. Program the device
 ---------------------
 
 cp nuttx.bin /run/media/po/DIS_F746NG/
