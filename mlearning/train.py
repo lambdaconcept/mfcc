@@ -21,6 +21,15 @@ np.random.seed(seed)
 
 store = {}
 
+# Simple
+store["simple"] = models.Sequential([
+    layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
+    layers.Conv2D(3, (3, 3), strides=(1, 1), padding="valid", activation="relu"),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    layers.Dense(ds.num_labels, activation="softmax"),
+])
+
 # Conv
 # store["conv"] = models.Sequential([
 #     layers.Reshape((-1, ds.nframes, ds.ncepstrums, 1), input_shape=ds.input_shape),
