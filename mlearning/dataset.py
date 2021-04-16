@@ -4,7 +4,6 @@ import pathlib
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-import tensorflow_io as tfio
 
 seed = 42
 tf.random.set_seed(seed)
@@ -76,6 +75,7 @@ def f(x, y):
   return image, label
 
 def augment(image_label, seed):
+    import tensorflow_io as tfio
     image, label = image_label
     image = tf.reshape(image, [-1, ncepstrums])
     image = tfio.experimental.audio.freq_mask(image, param=4)
