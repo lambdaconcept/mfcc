@@ -1,4 +1,5 @@
 import os
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -77,7 +78,24 @@ def my_conv2d(din, kernels, bias):
 
     return dout
 
+def validate(din1, din2):
+    nerrors = 0
+    FLT_EPSILON = 1e-5
+    _, nrows, ncols, nchannels = din1.shape
+    for k in range(nchannels):
+        for i in range(nrows):
+            for j in range(ncols):
+                err = abs(din1[0][i][j][k] - din2[0][i][j][k])
+                if err > FLT_EPSILON:
+                    print("Error: [{}][{}][{}]: err: {}".format(i, j, k, err))
+                    nerrors += 1
+    return nerrors
+
 def main():
+    np.set_printoptions(precision=5,
+                        threshold=sys.maxsize,
+                        linewidth=256)
+
     name = "simple"
     save_path = "saved/model_" + name + "/"
     tflite_model_quant_file = os.path.join(save_path, "model_float.tflite")
@@ -123,6 +141,9 @@ def main():
     fig, axs = plt.subplots(nrows=1, ncols=nkernels)
     for i in range(nkernels):
         axs[i].imshow(conv2d_out[0][..., i]) # , vmin=-128, vmax=127)
+
+    ret = validate(my_out, conv2d_out)
+    print("validate: nerrors:", ret)
 
     plt.show()
 
