@@ -74,7 +74,10 @@ def my_conv2d(din, din_details,
     else:
         izp, ozp = 0, 0
 
-    dout = np.zeros((1, oh, ow, nkernels))
+    if quantized:
+        dout = np.zeros((1, oh, ow, nkernels), dtype=np.int8)
+    else:
+        dout = np.zeros((1, oh, ow, nkernels))
 
     for k in range(nkernels):
         kernel = kernels[k]
@@ -130,7 +133,7 @@ def validate(din1, din2, quantized=True):
             for j in range(ncols):
                 err = abs(din1[0][i][j][k] - din2[0][i][j][k])
                 if err > EPSILON:
-                    # print("Error: [{}][{}][{}]: err: {}".format(i, j, k, err))
+                    print("Error: [{}][{}][{}]: err: {}".format(i, j, k, err))
                     nerrors += 1
     return nerrors
 

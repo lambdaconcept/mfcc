@@ -7,7 +7,7 @@ def QuantizeMultiplier(double_multiplier):
         return (0, 0)
 
     q, shift = math.frexp(double_multiplier)
-    q_fixed = q * (1 << 31)
+    q_fixed = round(q * (1 << 31))
 
     if (q_fixed == (1 << 31)):
         q_fixed /= 2
