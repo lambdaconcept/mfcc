@@ -4,13 +4,89 @@ import subprocess
 
 from importlib import resources
 
+from nmigen import *
+
+from nmigen.lib.cdc import ResetSynchronizer
 from nmigen.hdl.ast import Signal, SignalDict
 from nmigen.build import *
 from nmigen.vendor.xilinx_7series import *
 from nmigen_boards.resources import *
 
 
-__all__ = ["SDMUlatorPlatform"]
+__all__ = ["SDMUlatorCRG", "SDMUlatorPlatform"]
+
+
+class SDMUlatorCRG(Elaboratable):
+    def __init__(self):
+        self.sync_reset = Signal()
+
+    def elaborate(self, platform):
+        m = Module()
+
+        clk100_i   = platform.request("clk100", 0).i
+        pll_locked = Signal()
+        pll_fb     = Signal()
+        pll_125    = Signal()
+        pll_200    = Signal()
+
+        m.submodules += Instance("PLLE2_BASE",
+            p_STARTUP_WAIT="FALSE", o_LOCKED=pll_locked,
+
+            # VCO @ 1000 MHz
+            p_REF_JITTER1=0.01, p_CLKIN1_PERIOD=10.0,
+            p_CLKFBOUT_MULT=10, p_DIVCLK_DIVIDE=1,
+            i_CLKIN1=clk100_i,
+            i_CLKFBIN=pll_fb, o_CLKFBOUT=pll_fb,
+
+            # 125 MHz
+            p_CLKOUT1_DIVIDE=8, p_CLKOUT1_PHASE=0.0,
+            o_CLKOUT1=pll_125,
+
+            # 200 MHz
+            p_CLKOUT2_DIVIDE=5, p_CLKOUT2_PHASE=0.0,
+            o_CLKOUT2=pll_200,
+        )
+
+        eos = Signal()
+        m.submodules += Instance("STARTUPE2",
+            o_EOS=eos,
+        )
+
+        # sync @ 125 MHz
+
+        m.domains += ClockDomain("sync")
+        m.submodules += Instance("BUFGCE",
+            i_I=pll_125, i_CE=eos,
+            o_O=ClockSignal("sync"),
+        )
+        m.submodules += ResetSynchronizer(
+            arst=~pll_locked | self.sync_reset, domain="sync",
+        )
+
+        # idelay_ref @ 200 MHz
+
+        m.domains += ClockDomain("idelay_ref")
+        m.submodules += Instance("BUFGCE",
+            i_I=pll_200, i_CE=eos,
+            o_O=ClockSignal("idelay_ref"),
+        )
+        m.submodules += ResetSynchronizer(
+            arst=~pll_locked, domain="idelay_ref",
+        )
+
+        # ft601 @ 100 MHz
+
+        m.domains += ClockDomain("ft601")
+        ft601_clk_i = platform.request("ft601_clk").i
+        ft601_rst_o = platform.request("ft601_rst").o
+
+        m.submodules += Instance("BUFGCE",
+            i_I=ft601_clk_i, i_CE=eos,
+            o_O=ClockSignal("ft601"),
+        )
+        m.d.comb += ft601_rst_o.eq(ResetSignal("ft601"))
+
+        return m
 
 
 class SDMUlatorPlatform(Xilinx7SeriesPlatform):

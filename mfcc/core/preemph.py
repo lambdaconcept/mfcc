@@ -1,6 +1,6 @@
 from nmigen import *
 from nmigen.sim import Simulator
-from mfcc.misc import stream
+from ..misc import stream
 
 
 """
