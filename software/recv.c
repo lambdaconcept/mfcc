@@ -35,11 +35,10 @@ int load_pixels(int fd, uint8_t *output, int width, int height) // output should
     get_cepstrum_column(fd, input, width);
 
     // shift buf
-    for (i=height-2; i>=0; i--) {
-        src = output + (i * width * 3);
-        dst = output + ((i+1) * width * 3);
-        memcpy(dst, src, width * 3);
-    }
+    src = output + (width * 3);
+    dst = output;
+    memmove(dst, src, (height-1) * width * 3);
+    dst = output + (height-1) * width * 3;
 
     // there is no grayscale... use rgb...
     for (i=0; i<width; i++) {
@@ -60,13 +59,13 @@ int load_pixels(int fd, uint8_t *output, int width, int height) // output should
         const tinycolormap::Color color = tinycolormap::GetColor(x, tinycolormap::ColormapType::Inferno);
         printf("scale %d, x: %f, color.b %f\n", scale, x, color.b());
 
-        output[3*i] = color.r() * 255;
-        output[3*i+1] = color.g() * 255;
-        output[3*i+2] = color.b() * 255;
+        dst[3*i] = color.r() * 255;
+        dst[3*i+1] = color.g() * 255;
+        dst[3*i+2] = color.b() * 255;
 
-        // output[3*i] = scale; // red
-        // output[3*i+1] = scale; // green
-        // output[3*i+2] = scale; // blue
+        // dst[3*i] = scale; // red
+        // dst[3*i+1] = scale; // green
+        // dst[3*i+2] = scale; // blue
     }
 
     printf("min %d, max %d\n", mymin, mymax);
