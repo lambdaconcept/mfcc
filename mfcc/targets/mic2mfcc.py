@@ -1,4 +1,5 @@
 from nmigen import *
+from nmigen_boards.resources import *
 
 from ..core.mfcc import MFCC
 from ..misc import stream
@@ -27,7 +28,7 @@ class Top(Elaboratable):
             mfcc.source.connect(magic.sink),
         ]
 
-        uart_pins = platform.request("uart", 0)
+        uart_pins = platform.request("uart", 1)
         m.submodules.serial = serial = AsyncSerial(divisor=int(100e6 / 1000000), pins=uart_pins)
         # m.d.comb += [
             # serial.tx.ack.eq(serial.rx.rdy),
@@ -89,6 +90,11 @@ def build():
             Subsignal("d7", Pins("10", dir="o", conn=("pmod", 1))),
             Attrs(IO_TYPE="LVCMOS33"),
         ),
+        UARTResource(1,
+            rx="1", tx="2", conn=("pmod", 4),
+            attrs=Attrs(IO_TYPE="LVCMOS33", PULLMODE="UP")
+        ),
+
     ])
     platform.build(Top(), name="top", build_dir="build", do_program=True)
 
