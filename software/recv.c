@@ -9,145 +9,30 @@
 #include <termios.h>
 
 #include "libcolormap/tinycolormap.hpp"
+#include "serial.h"
 
 #include "SDL2/SDL.h"
 
 #define NCEPSTRUMS 32
 #define NFRAMES 93
 
-#define MAGIC_H 0xa5
-#define MAGIC_L 0x5a
-
-int
-set_interface_attribs (int fd, int speed, int parity)
-{
-        struct termios tty;
-        if (tcgetattr (fd, &tty) != 0)
-        {
-                printf ("error %d from tcgetattr", errno);
-                return -1;
-        }
-
-        cfsetospeed (&tty, speed);
-        cfsetispeed (&tty, speed);
-
-        tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;     // 8-bit chars
-        // disable IGNBRK for mismatched speed tests; otherwise receive break
-        // as \000 chars
-        tty.c_iflag &= ~IGNBRK;         // disable break processing
-        tty.c_lflag = 0;                // no signaling chars, no echo,
-                                        // no canonical processing
-        tty.c_oflag = 0;                // no remapping, no delays
-        tty.c_cc[VMIN]  = 0;            // read doesn't block
-        tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
-
-        tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
-
-        tty.c_cflag |= (CLOCAL | CREAD);// ignore modem controls,
-                                        // enable reading
-        tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
-        tty.c_cflag |= parity;
-        tty.c_cflag &= ~CSTOPB;
-        tty.c_cflag &= ~CRTSCTS;
-
-        if (tcsetattr (fd, TCSANOW, &tty) != 0)
-        {
-                printf ("error %d from tcsetattr", errno);
-                return -1;
-        }
-        return 0;
-}
-
-void
-set_blocking (int fd, int should_block)
-{
-        struct termios tty;
-        memset (&tty, 0, sizeof tty);
-        if (tcgetattr (fd, &tty) != 0)
-        {
-                printf ("error %d from tggetattr", errno);
-                return;
-        }
-
-        tty.c_cc[VMIN]  = should_block ? 1 : 0;
-        tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
-
-        if (tcsetattr (fd, TCSANOW, &tty) != 0)
-                printf ("error %d setting term attributes", errno);
-}
-
-int expect_magic(int fd)
-{
-    int n;
-    uint8_t val;
-    bool aligned = false;
-
-    while (!aligned) {
-
-        // Our serial transmission is in big endian order
-
-        do {
-            n = read(fd, &val, 1);
-            if (n <= 0) {
-                printf("Align read failed\n");
-                return -1;
-            }
-            // printf("Dropping... %02x\n", val);
-        } while (val != MAGIC_H);
-
-        n = read(fd, &val, 1);
-        if (n <= 0) {
-            printf("Align read failed\n");
-            return -1;
-        }
-
-        if (val == MAGIC_L) {
-            aligned = true;
-            // printf("Aligned on magic\n");
-        }
-    }
-
-    return 0;
-}
-
 int load_pixels(int fd, uint8_t *output, int width, int height) // output should be 3*size
 {
     int i;
-    uint8_t *input, *p;
-    uint8_t *src, *dst;
-    int remain;
-    int n;
     int size;
     int16_t val;
+    int16_t *input;
+    uint8_t *src, *dst;
     uint32_t scale;
     int mymax = -32768;
     int mymin = 32767;
-
     double x;
 
-    size = width * 2;
-    input = (uint8_t*)malloc(size);
+    size = width * sizeof(int16_t);
+    input = (int16_t *)malloc(size);
     memset(input, 0, size);
-    p = input;
-    remain = size;
 
-    // printf("waiting for column...\n");
-
-    expect_magic(fd);
-
-    while (remain > 0) {
-        n = read(fd, p, remain);
-        if (n <= 0) {
-            printf("read failed\n");
-            return -1;
-        }
-
-        p += n;
-        remain -= n;
-
-        // printf("recv %d, remain %d\n", n, remain);
-    }
-    printf("frame received (%d)\n", size);
+    get_cepstrum_column(fd, input, width);
 
     // shift buf
     for (i=height-2; i>=0; i--) {
@@ -158,7 +43,7 @@ int load_pixels(int fd, uint8_t *output, int width, int height) // output should
 
     // there is no grayscale... use rgb...
     for (i=0; i<width; i++) {
-        val = ((int16_t)input[2*i] << 8) | (input[2*i + 1]);
+        val = input[i];
         if (val > mymax) {
             mymax = val;
         }
@@ -204,7 +89,7 @@ int main(int argc, char *argv[])
     int size;
     uint8_t *pixels;
 
-    fd = open("/dev/ttyUSB5", O_RDWR | O_NOCTTY | O_SYNC);
+    fd = open("/dev/ttyUSB1", O_RDWR | O_NOCTTY | O_SYNC);
     if (fd < 0) {
         fprintf(stderr, "ERROR: open failed: %d\n", errno);
         return -1;
