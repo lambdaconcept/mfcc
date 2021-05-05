@@ -2,6 +2,7 @@ from nmigen import *
 
 from ..core.mfcc import MFCC
 from ..misc import stream
+from ..misc.magic import MagicInserter
 
 from ..io.i2s_mic import AudioReceiver
 from nmigen_stdio.serial import AsyncSerial
@@ -14,6 +15,7 @@ class Top(Elaboratable):
     def elaborate(self, platform):
         m = Module()
         m.submodules.mfcc = mfcc = MFCC(nfft=512, nfilters=32, nceptrums=16)
+        m.submodules.magic = magic = MagicInserter()
 
         i2s_pins = platform.request("i2s_in", 0)
         m.submodules.mic  = mic  = AudioReceiver(clk_freq=100e6, sample_freq=16e3, i2s_pins=i2s_pins)
@@ -22,6 +24,7 @@ class Top(Elaboratable):
         m.d.comb += [
             mic.source.connect(mic_fifo.sink),
             mic_fifo.source.connect(mfcc.sink),
+            mfcc.source.connect(magic.sink),
         ]
 
         uart_pins = platform.request("uart", 0)
@@ -35,16 +38,17 @@ class Top(Elaboratable):
             # serial.tx.ack.eq(1),
         # ]
 
-        mfcc.source.ready.reset = 1
+        tail = magic
+        tail.source.ready.reset = 1
 
         tx_ack_nxt  = Signal()
         tx_data_nxt = Signal(8)
-        with m.If(mfcc.source.valid & mfcc.source.ready):
+        with m.If(tail.source.valid & tail.source.ready):
             m.d.sync += [
-                Cat(tx_data_nxt, serial.tx.data).eq(mfcc.source.data),
+                Cat(tx_data_nxt, serial.tx.data).eq(tail.source.data),
                 tx_ack_nxt.eq(1),
                 serial.tx.ack.eq(1),
-                mfcc.source.ready.eq(0),
+                tail.source.ready.eq(0),
             ]
 
         with m.If(serial.tx.rdy & serial.tx.ack):
@@ -55,7 +59,7 @@ class Top(Elaboratable):
                 ]
             with m.Else():
                 m.d.sync += serial.tx.ack.eq(0)
-                m.d.sync += mfcc.source.ready.eq(1)
+                m.d.sync += tail.source.ready.eq(1)
 
         return m
 
