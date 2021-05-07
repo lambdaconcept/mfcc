@@ -1,7 +1,7 @@
 from nmigen import *
 
 from ..core.mfcc import MFCC
-from ..misc.blinker import *
+from ..misc.led import *
 from ..io.ft601 import *
 
 

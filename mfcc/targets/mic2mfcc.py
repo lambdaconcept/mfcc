@@ -4,6 +4,7 @@ from nmigen_boards.resources import *
 from ..core.mfcc import MFCC
 from ..misc import stream
 from ..misc.magic import MagicInserter
+from ..misc.led import SevenSegController
 
 from ..io.i2s_mic import AudioReceiver
 from nmigen_stdio.serial import AsyncSerial
@@ -26,6 +27,16 @@ class Top(Elaboratable):
             mic.source.connect(mic_fifo.sink),
             mic_fifo.source.connect(mfcc.sink),
             mfcc.source.connect(magic.sink),
+        ]
+
+        num = Signal(range(10))
+        m.submodules.seven_ctrl = seven_ctrl = SevenSegController()
+        seven_pins = platform.request("seven_seg", 0)
+        m.d.comb += [
+            seven_ctrl.val.eq(num),
+
+            seven_pins.val.eq(seven_ctrl.leds),
+            seven_pins.sel.o.eq(1),
         ]
 
         uart_pins = platform.request("uart", 1)
@@ -62,6 +73,12 @@ class Top(Elaboratable):
                 m.d.sync += serial.tx.ack.eq(0)
                 m.d.sync += tail.source.ready.eq(1)
 
+        # # #
+
+        m.d.comb += serial.rx.ack.eq(1)
+        with m.If(serial.rx.rdy & serial.rx.ack):
+            m.d.sync += num.eq(serial.rx.data)
+
         return m
 
 
@@ -94,7 +111,10 @@ def build():
             rx="1", tx="2", conn=("pmod", 4),
             attrs=Attrs(IO_TYPE="LVCMOS33", PULLMODE="UP")
         ),
-
+        Resource("seven_seg", 0,
+            Subsignal("val", PinsN("1 2 3 4 7 8 9", dir="o", conn=("pmod", 7))),
+            Subsignal("sel", PinsN("10", dir="o", conn=("pmod", 7)))
+        ),
     ])
     platform.build(Top(), name="top", build_dir="build", do_program=True)
 
