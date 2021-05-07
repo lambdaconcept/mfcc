@@ -28,9 +28,9 @@ class MagicInserter(Elaboratable):
                 m.d.comb += [
                     source.first.eq(1),
                     source.data.eq(self.magic),
-                    source.valid.eq(1),
+                    source.valid.eq(sink.valid),
                 ]
-                with m.If(source.ready):
+                with m.If(source.valid & source.ready):
                     m.next = "FORWARD"
 
             with m.State("FORWARD"):
