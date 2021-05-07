@@ -10,6 +10,7 @@
 
 #include "libcolormap/tinycolormap.hpp"
 #include "serial.h"
+#include "cepstrum.h"
 
 #include "SDL2/SDL.h"
 
@@ -32,7 +33,7 @@ int load_pixels(int fd, uint8_t *output, int width, int height) // output should
     input = (int16_t *)malloc(size);
     memset(input, 0, size);
 
-    get_cepstrum_column(fd, input, width);
+    cepstrum_get_column(fd, input, width);
 
     // shift buf
     src = output + (width * 3);
@@ -57,7 +58,7 @@ int load_pixels(int fd, uint8_t *output, int width, int height) // output should
 
         x = (double)scale / 65535.0;
         const tinycolormap::Color color = tinycolormap::GetColor(x, tinycolormap::ColormapType::Inferno);
-        printf("scale %d, x: %f, color.b %f\n", scale, x, color.b());
+        // printf("scale %d, x: %f, color.b %f\n", scale, x, color.b());
 
         dst[3*i] = color.r() * 255;
         dst[3*i+1] = color.g() * 255;
@@ -68,7 +69,7 @@ int load_pixels(int fd, uint8_t *output, int width, int height) // output should
         // dst[3*i+2] = scale; // blue
     }
 
-    printf("min %d, max %d\n", mymin, mymax);
+    // printf("min %d, max %d\n", mymin, mymax);
     free(input);
 
     return 0;
