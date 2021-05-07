@@ -16,7 +16,7 @@ class Top(Elaboratable):
         m = Module()
         m.submodules.crg = self._crg
 
-        m.submodules.mfcc = mfcc = MFCC(nfft=512, nfilters=32, nceptrums=16)
+        m.submodules.mfcc = mfcc = MFCC(nfft=512, nfilters=32, nceptrums=32)
         m.submodules.ft601 = ft601 = FT601PHY(pads=platform.request("ft601", 0))
         m.submodules.blinker_rx = blinker_rx = BlinkerKeep()
         m.submodules.blinker_tx = blinker_tx = BlinkerKeep()

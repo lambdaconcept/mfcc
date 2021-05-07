@@ -10,7 +10,7 @@ from .filterbank import *
 from .log import *
 from .preemph import *
 from ..misc.mul import *
-# from ..misc.discard import *
+from ..misc.discard import *
 
 
 __all__ = ["MFCC"]
@@ -84,8 +84,8 @@ class MFCC(Elaboratable):
         dct_stream = DCTStream(width=self.width, nfft=self.nfilters)
         m.submodules.dct_stream = dct_stream
 
-        # discard = Discard(width=self.width, first=1, count=self.nceptrums)
-        # m.submodules.discard = discard
+        discard = Discard(width=self.width, first=0, count=self.nceptrums)
+        m.submodules.discard = discard
 
         m.d.comb += [
             sink.connect(preemph.sink),
@@ -99,9 +99,8 @@ class MFCC(Elaboratable):
             filterbank.source.connect(fifo_filter.sink),
             fifo_filter.source.connect(log2.sink),
             log2.source.connect(dct_stream.sink),
-            dct_stream.source.connect(source),
-
-            # discard.sink
+            dct_stream.source.connect(discard.sink),
+            discard.source.connect(source),
         ]
 
         # for simulator
@@ -112,7 +111,7 @@ class MFCC(Elaboratable):
         self.filterbank = filterbank
         self.log2 = log2
         self.dct_stream = dct_stream
-        # self.discard = discard
+        self.discard = discard
 
         m = ResetInserter(self.reset)(m)
         return m
@@ -123,7 +122,7 @@ def test():
     import matplotlib.colors as mcolors
     from scipy.io import wavfile
 
-    dut = MFCC(nfft=512, nfilters=32)
+    dut = MFCC(nfft=512, nfilters=32, nceptrums=16)
     sample_rate, audio = wavfile.read("f2bjrop1.0.wav")
 
     def gen_collector(name, src, list_o, field="data"):
@@ -169,7 +168,7 @@ def test():
     sim.add_clock(1e-6) # 1 MHz
     sim.add_sync_process(bench)
 
-    chain = [[] for i in range(8)]
+    chain = [[] for i in range(9)]
 
     chain[0] = [audio[i: i + dut.frame.windowlen]
                for i in range(0, len(audio), dut.frame.stepsize)]
@@ -181,7 +180,7 @@ def test():
     sim.add_sync_process(gen_collector("filter", dut.filterbank.source, chain[5]))
     sim.add_sync_process(gen_collector("log", dut.log2.source, chain[6]))
     sim.add_sync_process(gen_collector("dct", dut.dct_stream.source, chain[7]))
-    # sim.add_sync_process(gen_collector("discard", dut.discard.source, chain[8]))
+    sim.add_sync_process(gen_collector("discard", dut.discard.source, chain[8]))
 
     with sim.write_vcd("top.vcd"):
         sim.run()
@@ -192,7 +191,7 @@ def test():
     print("filter", chain[5])
     print("log", chain[6])
     print("dct", chain[7])
-    # print("discard", chain[8])
+    print("discard", chain[8])
 
     nplots = len(chain)
     nframes = len(chain[-1])
