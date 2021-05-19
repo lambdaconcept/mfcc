@@ -77,3 +77,34 @@ Our Filterbank uses a single multiplier for the entire design with a single pass
 The output of our powerspectrum applied to the filterbank is represented here.
 ![Block Diagram](docs/mel.png)
 
+## Logarithm
+
+The logarithm is an implementation of a fix point base 2 using Clay. S. Turner's method presented in this paper: https://stm32duinoforum.com/forum/dsp/BinaryLogarithm.pdf
+The module uses a single multiplier and a couple of shift registe.
+Contrary to the classical MFCC algorithm, we keep it on a base2 which is proportionnal to the base10 log
+
+The output is represented here
+![Block Diagram](docs/log2.png)
+
+## Discret Cosine Transform
+
+In order to decorelate the output of our log filterbank, a DCT is used. Our implementation is a Type 2 DCT using 4N FFT and no shifts.
+Signal [a, b, c, d] becomes
+
+[0, a, 0, b, 0,  c,  0,  d,  0,  d,  0,  c, 0, b, 0, a].
+
+Then take the FFT to get the spectrum
+
+[A, B, C, D, 0, -D, -C, -B, -A, -B, -C, -D, 0, D, C, B]
+
+then throw away everything but the first [A, B, C, D], and we're done:
+
+![Block Diagram](docs/dct.png)
+
+## Final Output
+By doing that process on 93 frames, we have 1sec of sound. each of the vertical line being 32 spectrum (outpuf of DCT) we have our final result represented here.
+![Block Diagram](docs/mfcc2d.png)
+
+
+
+
