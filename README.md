@@ -24,7 +24,7 @@ The pre-emphasis filter can be applied to a signal x using the first-order filte
 y(t)=x(t)−αx(t−1)
 The values for the filter coefficient (α) that we have chosen is: 1-1/32 = 0,96875 which is between the typical value of 0.95 to 0.97 and can be done easily with a shift register.
 After pre-emphasis, we have our audio:
-![Block Diagram](docs/orig.png)
+![Block Diagram](docs/preemph.png)
 
 ## Framing
 
