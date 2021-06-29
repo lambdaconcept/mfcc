@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import wavfile
 
-NCEPSTRUMS = 32
+# NCEPSTRUMS = 32
+NCEPSTRUMS = 16
 
 def main(path):
     wav = path + ".wav"

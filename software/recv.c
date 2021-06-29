@@ -14,7 +14,7 @@
 
 #include "SDL2/SDL.h"
 
-#define NCEPSTRUMS 32
+#define NCEPSTRUMS 16
 #define NFRAMES 93
 
 int load_pixels(int fd, uint8_t *output, int width, int height) // output should be 3*size
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     int size;
     uint8_t *pixels;
 
-    fd = open("/dev/ttyUSB1", O_RDWR | O_NOCTTY | O_SYNC);
+    fd = open("/dev/ttyUSB2", O_RDWR | O_NOCTTY | O_SYNC);
     if (fd < 0) {
         fprintf(stderr, "ERROR: open failed: %d\n", errno);
         return -1;
