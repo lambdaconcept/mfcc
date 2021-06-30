@@ -3,6 +3,7 @@
 Development of a MFCC core in a FPGA
 
 ![Block Diagram](docs/MFCC.png)
+![Block Diagram](docs/flow.gif)
 
 ## Overview
 
